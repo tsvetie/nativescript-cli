@@ -306,7 +306,34 @@ export class AndroidUsbLiveSyncService extends androidLiveSyncServiceLib.Android
 	public sendPageReloadMessageToDevice(deviceAppData: Mobile.IDeviceAppData): IFuture<void> {
 		return (() => {
 			this.device.adb.executeCommand(["forward", `tcp:${AndroidUsbLiveSyncService.BACKEND_PORT.toString()}`, `localabstract:${deviceAppData.appIdentifier}-livesync`]).wait();
-			this.sendPageReloadMessage().wait();
+
+			let socket = new net.Socket();
+			socket.on("error", (err: any, data: any) => {
+				console.log("SOCKET ERRROR!!!!! ", err);
+				if (err && err.code !== "EISCONN") {
+					socket.destroy();
+					//future.throw(new Error(err));
+				}
+			});
+
+			socket.on("data", (err: any, data: any) => {
+				console.log("SOCKET ERROR !!!! ", err);
+				console.log("SOCKET DATA!!!!! ", data);
+				// future.return(data);
+			});
+
+			socket.on("end", (err: any, data: any) => {
+				console.log("SOCKET END!!!!!!!");
+				console.log("SOCKET ERROR !!!! ", err);
+				console.log("SOCKET DATA!!!!! ", data);
+			});
+
+			socket.on("timeout", () => {
+				console.log("SOCKET TIMEOUT!!!!!!! ");
+			});
+
+			this.sendPageReloadMessage(socket).wait();
+
 		}).future<void>()();
 	}
 
@@ -325,19 +352,12 @@ export class AndroidUsbLiveSyncService extends androidLiveSyncServiceLib.Android
 		return `/data/local/tmp/${appIdentifier}`;
 	}
 
-	private sendPageReloadMessage(): IFuture<void> {
+	private sendPageReloadMessage(socket: any): IFuture<void> {
 		let future = new Future<void>();
 
-		let socket = new net.Socket();
 		socket.connect(AndroidUsbLiveSyncService.BACKEND_PORT, '127.0.0.1', () => {
-			try {
-				socket.write(new Buffer([0, 0, 0, 1, 1]));
- 				future.return();
-			} catch(e) {
-				future.throw(e);
-			} finally {
-				socket.destroy();
-			}
+			socket.write(new Buffer([0, 0, 0, 1, 1]));
+			future.return();
 		});
 
 		return future;
