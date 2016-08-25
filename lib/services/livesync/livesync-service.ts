@@ -85,11 +85,11 @@ class LiveSyncService implements ILiveSyncService {
 		// So that we can use the above code, or the WebPack in place of the scripts preparation, but still use existing native preparation.
 
 		// TODO: Remove or refactor:
-		// if (!this.$platformService.preparePlatform(platform.toLowerCase()).wait()) {
-		// 	this.$errors.failWithoutHelp("Verify that listed files are well-formed and try again the operation.");
-		// }
+		if (!this.$platformService.preparePlatform(platform.toLowerCase()).wait()) {
+		 	this.$errors.failWithoutHelp("Verify that listed files are well-formed and try again the operation.");
+		}
 
-		let projectBuildResult = this.$platformService.preparePlatform2(platform.toLowerCase()).wait();
+		//let projectBuildResult = this.$platformService.preparePlatform2(platform.toLowerCase()).wait();
 		// TODO: Some errors were triggering: this.$errors.failWithoutHelp("Verify that listed files are well-formed and try again the operation.");
 
 		let platformData = this.$platformsData.getPlatformData(platform.toLowerCase());

@@ -309,7 +309,9 @@ export class IOSProjectService extends projectServiceBaseLib.PlatformProjectServ
 				args.push(`PROVISIONING_PROFILE=${buildConfig.mobileProvisionIdentifier}`);
 			}
 
-			this.$childProcess.spawnFromEvent("xcodebuild", args, "exit", { cwd: this.$options, stdio: 'inherit' }).wait();
+			let stdio = this.$logger.shouldLog("DEBUG") ? "inherit" : "ignore";
+
+			this.$childProcess.spawnFromEvent("xcodebuild", args, "exit", { cwd: this.$options, stdio: stdio }).wait();
 
 			if (buildForDevice) {
 				let buildOutputPath = path.join(projectRoot, "build", "device");
@@ -322,7 +324,7 @@ export class IOSProjectService extends projectServiceBaseLib.PlatformProjectServ
 					"-o", path.join(buildOutputPath, this.$projectData.projectName + ".ipa")
 				];
 
-				this.$childProcess.spawnFromEvent("xcrun", xcrunArgs, "exit", { cwd: this.$options, stdio: 'inherit' }).wait();
+				this.$childProcess.spawnFromEvent("xcrun", xcrunArgs, "exit", { cwd: this.$options, stdio: stdio }).wait();
 			}
 		}).future<void>()();
 	}

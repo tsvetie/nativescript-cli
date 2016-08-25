@@ -94,8 +94,9 @@ export abstract class PlatformLiveSyncServiceBase implements IPlatformLiveSyncSe
 	public refreshApplication(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]): IFuture<void> {
 		return (() => {
 			let deviceLiveSyncService = this.resolveDeviceSpecificLiveSyncService(deviceAppData.device.deviceInfo.platform, deviceAppData.device);
-			this.$logger.info("Applying changes...");
-			deviceLiveSyncService.refreshApplication(deviceAppData, localToDevicePaths, this.liveSyncData.forceExecuteFullSync).wait();
+			this.$logger.track("INFO", "Applying changes", "", () => {
+				deviceLiveSyncService.refreshApplication(deviceAppData, localToDevicePaths, this.liveSyncData.forceExecuteFullSync).wait();
+			});
 		}).future<void>()();
 	}
 
@@ -103,25 +104,27 @@ export abstract class PlatformLiveSyncServiceBase implements IPlatformLiveSyncSe
 		return (() => {
 			// This message is important because it signals Visual Studio Code that livesync has finished and debugger can be attached.
 			this.$logger.info(`Successfully synced application ${deviceAppData.appIdentifier} on device ${deviceAppData.device.deviceInfo.identifier}.`);
+			this.$logger.info("\nConsole log output follows. Press Ctrl+C to exit.\n");
 		}).future<void>()();
 	}
 
 	protected transferFiles(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[], projectFilesPath: string, isFullSync: boolean): IFuture<void> {
 		return (() => {
-			this.$logger.info("Transferring project files...");
-			this.logFilesSyncInformation(localToDevicePaths, "Transferring %s.", this.$logger.trace);
+			this.$logger.track("INFO", "transferring project files", "", () => {
+				//this.logFilesSyncInformation(localToDevicePaths, "Transferring %s.", this.$logger.trace);
 
-			let canTransferDirectory = isFullSync && (this.$devicesService.isAndroidDevice(deviceAppData.device) || this.$devicesService.isiOSSimulator(deviceAppData.device));
-			if (canTransferDirectory) {
-				let tempDir = temp.mkdirSync("tempDir");
-				shell.cp("-Rf", path.join(projectFilesPath, "*"), tempDir);
-				this.$projectFilesManager.processPlatformSpecificFiles(tempDir, deviceAppData.platform).wait();
-				deviceAppData.device.fileSystem.transferDirectory(deviceAppData, localToDevicePaths, tempDir).wait();
-			} else {
-				this.$liveSyncProvider.transferFiles(deviceAppData, localToDevicePaths, projectFilesPath, isFullSync).wait();
-			}
+				let canTransferDirectory = isFullSync && (this.$devicesService.isAndroidDevice(deviceAppData.device) || this.$devicesService.isiOSSimulator(deviceAppData.device));
+				if (canTransferDirectory) {
+					let tempDir = temp.mkdirSync("tempDir");
+					shell.cp("-Rf", path.join(projectFilesPath, "*"), tempDir);
+					this.$projectFilesManager.processPlatformSpecificFiles(tempDir, deviceAppData.platform).wait();
+					deviceAppData.device.fileSystem.transferDirectory(deviceAppData, localToDevicePaths, tempDir).wait();
+				} else {
+					this.$liveSyncProvider.transferFiles(deviceAppData, localToDevicePaths, projectFilesPath, isFullSync).wait();
+				}
+			});
 
-			this.logFilesSyncInformation(localToDevicePaths, "Successfully transferred %s.", this.$logger.info);
+			//this.logFilesSyncInformation(localToDevicePaths, "Successfully transferred %s.", this.$logger.info);
 		}).future<void>()();
 	}
 

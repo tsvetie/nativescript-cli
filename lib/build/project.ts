@@ -415,7 +415,7 @@ export namespace Project {
             Object.keys(this.dependencies).forEach(dependecy => {
                 let pack = this.dependencies[dependecy];
                 this.$logger.debug("dependency: " + pack.name + " at " + pack.path);
-                this.$logger.debug("script files:")
+                this.$logger.debug("script files:");
                 pack.scriptFiles.forEach(f => this.$logger.debug("  " + f.path));
                 for (let platform in pack.nativeFiles) {
                     this.$logger.debug("native " + platform + " files:");

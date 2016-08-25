@@ -258,7 +258,7 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 				if (this.$hostInfo.isWindows) {
 					gradleBin += ".bat"; // cmd command line parsing rules are weird. Avoid issues with quotes. See https://github.com/apache/cordova-android/blob/master/bin/templates/cordova/lib/builders/GradleBuilder.js for another approach
 				}
-				this.spawn(gradleBin, buildOptions, { stdio: "inherit", cwd: this.platformData.projectRoot }).wait();
+				this.spawn(gradleBin, buildOptions, { stdio: this.$logger.shouldLog("DEBUG") ? "inherit" : "ignore", cwd: this.platformData.projectRoot }).wait();
 			} else {
 				this.$errors.failWithoutHelp("Cannot complete build because this project is ANT-based." + EOL +
 					"Run `tns platform remove android && tns platform add android` to switch to Gradle and try again.");

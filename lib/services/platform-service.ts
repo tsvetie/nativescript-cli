@@ -205,27 +205,34 @@ export class PlatformService implements IPlatformService {
 
 	public preparePlatform(platform: string): IFuture<boolean> {
 		return (() => {
-			this.validatePlatform(platform);
 
-			//We need dev-dependencies here, so before-prepare hooks will be executed correctly.
-			try {
-				this.$pluginsService.ensureAllDependenciesAreInstalled().wait();
-			} catch (err) {
-				this.$logger.trace(err);
-				this.$errors.failWithoutHelp(`Unable to install dependencies. Make sure your package.json is valid and all dependencies are correct. Error is: ${err.message}`);
-			}
+			this.$logger.track("DEBUG", "validating prepare", "", () => {
+				this.validatePlatform(platform);
 
-			// Need to check if any plugin requires Cocoapods to be installed.
-			if (platform === "ios") {
-				_.each(this.$pluginsService.getAllInstalledPlugins().wait(), (pluginData: IPluginData) => {
-					if (this.$fs.exists(path.join(pluginData.pluginPlatformsFolderPath(platform), "Podfile")).wait() &&
-						!this.$sysInfo.getCocoapodVersion().wait()) {
-						this.$errors.failWithoutHelp(`${pluginData.name} has Podfile and you don't have Cocoapods installed or it is not configured correctly. Please verify Cocoapods can work on your machine.`);
-					}
-				});
-			}
+				//We need dev-dependencies here, so before-prepare hooks will be executed correctly.
+				try {
+					this.$pluginsService.ensureAllDependenciesAreInstalled().wait();
+				} catch (err) {
+					this.$logger.trace(err);
+					this.$errors.failWithoutHelp(`Unable to install dependencies. Make sure your package.json is valid and all dependencies are correct. Error is: ${err.message}`);
+				}
 
-			return this.preparePlatformCore(platform).wait();
+				// Need to check if any plugin requires Cocoapods to be installed.
+				if (platform === "ios") {
+					_.each(this.$pluginsService.getAllInstalledPlugins().wait(), (pluginData: IPluginData) => {
+						if (this.$fs.exists(path.join(pluginData.pluginPlatformsFolderPath(platform), "Podfile")).wait() &&
+							!this.$sysInfo.getCocoapodVersion().wait()) {
+							this.$errors.failWithoutHelp(`${pluginData.name} has Podfile and you don't have Cocoapods installed or it is not configured correctly. Please verify Cocoapods can work on your machine.`);
+						}
+					});
+				}
+			});
+
+			this.$logger.track("INFO", "preparing " + platform + " project", "", () => {
+				this.preparePlatformCore(platform).wait();
+			});
+
+			return true;
 		}).future<boolean>()();
 	}
 
@@ -255,18 +262,36 @@ export class PlatformService implements IPlatformService {
 	@helpers.hook('prepare')
 	private preparePlatformCore(platform: string): IFuture<boolean> {
 		return (() => {
-			platform = platform.toLowerCase();
 			this.ensurePlatformInstalled(platform).wait();
 
-			let platformData = this.$platformsData.getPlatformData(platform);
-			platformData.platformProjectService.ensureConfigurationFileInAppResources().wait();
-			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
-			let lastModifiedTime = this.$fs.exists(appDestinationDirectoryPath).wait() ?
-				this.$fs.getFsStats(appDestinationDirectoryPath).wait().mtime : null;
+			this.$logger.track("DEBUG", "copy app files", "", () => { this.copyAppFiles(platform).wait(); });
+			this.$logger.track("DEBUG", "copy app resources", "", () => { this.copyAppResources(platform).wait(); });
+			this.$logger.track("DEBUG", "prepare project", "", () =>{
+				let platformData = this.$platformsData.getPlatformData(platform);
+				platformData.platformProjectService.prepareProject().wait();
+			});
+			this.$logger.track("DEBUG", "copy tns_modules", "", () => this.copyTnsModules(platform).wait() );
+			this.$logger.track("DEBUG", "prepare platform specific files", "", () => this.preparePlatformSpecificFiles(platform).wait());
 
-			// Copy app folder to native project
-			this.$fs.ensureDirectoryExists(appDestinationDirectoryPath).wait();
+			this.$logger.track("DEBUG", "configure", "", () => {
+				let platformData = this.$platformsData.getPlatformData(platform);
+				this.applyBaseConfigOption(platformData).wait();
+				platformData.platformProjectService.ensureConfigurationFileInAppResources().wait();
+				platformData.platformProjectService.processConfigurationFilesFromAppResources().wait();
+				platformData.platformProjectService.interpolateConfigurationFile().wait();
+			});
+
+			return true;
+		}).future<boolean>()();
+	}
+
+	private copyAppFiles(platform: string): IFuture<boolean> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
+			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
 			let appSourceDirectoryPath = path.join(this.$projectData.projectDir, constants.APP_FOLDER_NAME);
+
+			this.$fs.ensureDirectoryExists(appDestinationDirectoryPath).wait();
 
 			// Delete the destination app in order to prevent EEXIST errors when symlinks are used.
 			let contents = this.$fs.readDirectory(appDestinationDirectoryPath).wait();
@@ -289,8 +314,9 @@ export class PlatformService implements IPlatformService {
 				sourceFiles = sourceFiles.filter(source => !minimatch(source, `**/${constants.TNS_MODULES_FOLDER_NAME}/**`, { nocase: true }));
 			}
 
-			// verify .xml files are well-formed
-			this.$xmlValidator.validateXmlFiles(sourceFiles).wait();
+			if (!this.$xmlValidator.validateXmlFiles(sourceFiles).wait()) {
+				return false;
+			}
 
 			// Remove .ts and .js.map files in release
 			if (this.$options.release) {
@@ -306,20 +332,35 @@ export class PlatformService implements IPlatformService {
 			});
 			Future.wait(copyFileFutures);
 
-			// Copy App_Resources to project root folder
+			return true;
+
+		}).future<boolean>()();
+	}
+
+	private copyAppResources(platform: string): IFuture<void> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
+			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
+
 			this.$fs.ensureDirectoryExists(platformData.platformProjectService.getAppResourcesDestinationDirectoryPath().wait()).wait(); // Should be deleted
+
 			let appResourcesDirectoryPath = path.join(appDestinationDirectoryPath, constants.APP_RESOURCES_FOLDER_NAME);
 			if (this.$fs.exists(appResourcesDirectoryPath).wait()) {
 				platformData.platformProjectService.prepareAppResources(appResourcesDirectoryPath).wait();
 				shell.cp("-Rf", path.join(appResourcesDirectoryPath, platformData.normalizedPlatformName, "*"), platformData.platformProjectService.getAppResourcesDestinationDirectoryPath().wait());
 				this.$fs.deleteDirectory(appResourcesDirectoryPath).wait();
 			}
+		}).future<void>()();
+	}
 
-			platformData.platformProjectService.prepareProject().wait();
+	private copyTnsModules(platform: string): IFuture<void> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
+			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
+			let lastModifiedTime = this.$fs.exists(appDestinationDirectoryPath).wait() ? this.$fs.getFsStats(appDestinationDirectoryPath).wait().mtime : null;
 
-			let appDir = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
 			try {
-				let tnsModulesDestinationPath = path.join(appDir, constants.TNS_MODULES_FOLDER_NAME);
+				let tnsModulesDestinationPath = path.join(appDestinationDirectoryPath, constants.TNS_MODULES_FOLDER_NAME);
 				if (!this.$options.bundle) {
 					// Process node_modules folder
 					this.$broccoliBuilder.prepareNodeModules(tnsModulesDestinationPath, platform, lastModifiedTime).wait();
@@ -329,34 +370,28 @@ export class PlatformService implements IPlatformService {
 				}
 			} catch (error) {
 				this.$logger.debug(error);
-				shell.rm("-rf", appDir);
+				shell.rm("-rf", appDestinationDirectoryPath);
 				this.$errors.failWithoutHelp(`Processing node_modules failed. ${error}`);
 			}
+		}).future<void>()();
+	}
 
-			// Process platform specific files
+	private preparePlatformSpecificFiles(platform: string): IFuture<void> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
 			let directoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
 			let excludedDirs = [constants.APP_RESOURCES_FOLDER_NAME];
 			this.$projectFilesManager.processPlatformSpecificFiles(directoryPath, platform, excludedDirs).wait();
-
-			this.applyBaseConfigOption(platformData).wait();
-
-			// Process configurations files from App_Resources
-			platformData.platformProjectService.processConfigurationFilesFromAppResources().wait();
-
-			// Replace placeholders in configuration files
-			platformData.platformProjectService.interpolateConfigurationFile().wait();
-
-			this.$logger.out("Project successfully prepared ("+platform+")");
-			return true;
-		}).future<boolean>()();
+		}).future<void>()();
 	}
 
 	public buildPlatform(platform: string, buildConfig?: IBuildConfig): IFuture<void> {
 		return (() => {
-			platform = platform.toLowerCase();
-			let platformData = this.$platformsData.getPlatformData(platform);
-			platformData.platformProjectService.buildProject(platformData.projectRoot, buildConfig).wait();
-			this.$logger.out("Project successfully built.");
+			this.$logger.track("INFO", "building", "Project successfully built.", () => {
+				platform = platform.toLowerCase();
+				let platformData = this.$platformsData.getPlatformData(platform);
+				platformData.platformProjectService.buildProject(platformData.projectRoot, buildConfig).wait();
+			});
 		}).future<void>()();
 	}
 
@@ -372,10 +407,11 @@ export class PlatformService implements IPlatformService {
 
 	public buildForDeploy(platform: string, buildConfig?: IBuildConfig): IFuture<void> {
 		return (() => {
-			platform = platform.toLowerCase();
-			let platformData = this.$platformsData.getPlatformData(platform);
-			platformData.platformProjectService.buildForDeploy(platformData.projectRoot, buildConfig).wait();
-			this.$logger.out("Project successfully built");
+			this.$logger.track("INFO", "building", "Project successfully built.", () => {
+				platform = platform.toLowerCase();
+				let platformData = this.$platformsData.getPlatformData(platform);
+				platformData.platformProjectService.buildForDeploy(platformData.projectRoot, buildConfig).wait();
+			});
 		}).future<void>()();
 	}
 
@@ -479,11 +515,14 @@ export class PlatformService implements IPlatformService {
 						}
 					}
 
-					platformData.platformProjectService.deploy(device.deviceInfo.identifier).wait();
-					device.applicationManager.reinstallApplication(this.$projectData.projectId, packageFile).wait();
-					this.$logger.info(`Successfully deployed on device with identifier '${device.deviceInfo.identifier}'.`);
+					this.$logger.track("INFO", "deploying", "", () => {
+						platformData.platformProjectService.deploy(device.deviceInfo.identifier).wait();
+						device.applicationManager.reinstallApplication(this.$projectData.projectId, packageFile).wait();
+						packageFileDict[packageFileKey] = packageFile;
+					});
 
-					packageFileDict[packageFileKey] = packageFile;
+					this.$logger.info(`Successfully deployed on device with identifier '${device.deviceInfo.identifier}'.`);
+					this.$logger.info("\nConsole log output follows. Press Ctrl+C to exit.\n");
 
 				}).future<void>()();
 			};

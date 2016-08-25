@@ -44,7 +44,7 @@ export class SocketProxyFactory implements ISocketProxyFactory {
 		let server = ws.createServer(<any>{
 			port: localPort,
 			verifyClient: (info: any, callback: Function) => {
-				this.$logger.info("Frontend client connected.");
+				this.$logger.debug("Frontend client connected.");
 				socketFactory((_socket: any) => {
 					this.$logger.info("Backend socket created.");
 					info.req["__deviceSocket"] = _socket;
@@ -95,7 +95,7 @@ export class SocketProxyFactory implements ISocketProxyFactory {
 		});
 
 		server.on("connection", (frontendSocket: net.Socket) => {
-			this.$logger.info("Frontend client connected.");
+			this.$logger.debug("Frontend client connected.");
 
 			frontendSocket.on("end", () => {
 				this.$logger.info('Frontend socket closed!');

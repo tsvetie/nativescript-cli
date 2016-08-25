@@ -72,6 +72,7 @@
     "shelljs": "0.5.3",
     "tabtab": "https://github.com/Icenium/node-tabtab/tarball/master",
     "temp": "0.8.3",
+    "ts-stream": "^0.8.0",
     "utf-8-validate": "https://github.com/telerik/utf-8-validate/tarball/v1.0.1.2",
     "winreg": "0.0.17",
     "ws": "0.7.1",
