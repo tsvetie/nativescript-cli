@@ -202,8 +202,10 @@ export class PlatformService implements IPlatformService {
 		}).future<string[]>()();
 	}
 
+	@helpers.hook('prepare')
 	public preparePlatform(platform: string): IFuture<boolean> {
 		return (() => {
+
 			this.validatePlatform(platform);
 
 			//We need dev-dependencies here, so before-prepare hooks will be executed correctly.
@@ -224,25 +226,127 @@ export class PlatformService implements IPlatformService {
 				});
 			}
 
-			return this.preparePlatformCore(platform).wait();
+			console.time("preparePlatformCore");
+			this.preparePlatformCore(platform).wait();
+			console.timeEnd("preparePlatformCore");
+
+			return true;
 		}).future<boolean>()();
 	}
 
-	@helpers.hook('prepare')
+
+	private track(msg: string, func: () => void) {
+		console.time(msg);
+		func();
+		console.timeEnd(msg);
+	}
+
+	private containsNewerFiles(dir: string, skipDir: string, mtime: number): boolean {
+		let files = this.$fs.readDirectory(dir).wait();
+		for (let file of files) {
+			let filePath = path.join(dir, file);
+			if (filePath === skipDir) {
+				continue;
+			}
+			let fileStats = this.$fs.getFsStats(filePath).wait();
+			if (fileStats.mtime.getTime() > mtime) {
+				return true;
+			}
+			if (fileStats.isDirectory()) {
+				if (this.containsNewerFiles(filePath, skipDir, mtime)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private preparePlatformCore(platform: string): IFuture<boolean> {
 		return (() => {
-			platform = platform.toLowerCase();
 			this.ensurePlatformInstalled(platform).wait();
 
 			let platformData = this.$platformsData.getPlatformData(platform);
-			platformData.platformProjectService.ensureConfigurationFileInAppResources().wait();
-			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
-			let lastModifiedTime = this.$fs.exists(appDestinationDirectoryPath).wait() ?
-				this.$fs.getFsStats(appDestinationDirectoryPath).wait().mtime : null;
 
-			// Copy app folder to native project
-			this.$fs.ensureDirectoryExists(appDestinationDirectoryPath).wait();
+			console.time("Iterate app files");
+			let projectAbsolutePath = path.join(platformData.projectRoot, "project");
+			let hasChangesInApp = false;
+			if (this.$fs.exists(projectAbsolutePath).wait()) {
+			 	let outputProjectMtime = this.$fs.getFsStats(projectAbsolutePath).wait().mtime.getTime();
+				hasChangesInApp = this.containsNewerFiles(this.$projectData.appDirectoryPath, this.$projectData.appResourcesDirectoryPath, outputProjectMtime);
+			} else {
+				hasChangesInApp = true;
+			}
+			this.$fs.writeFile(projectAbsolutePath, "Last build: " + new Date().toString()).wait();
+			console.timeEnd("Iterate app files");
+			//if (hasChangesInApp){
+		    	this.track("copyAppFiles", () => this.copyAppFiles(platform).wait() );
+			//}
+			
+			console.time("Iterate resources files");
+			let hasChangesInResources = false;
+			if (this.$fs.exists(projectAbsolutePath).wait()) {
+			 	let outputProjectMtime = this.$fs.getFsStats(projectAbsolutePath).wait().mtime.getTime();
+				hasChangesInResources = this.containsNewerFiles(path.join(this.$projectData.appResourcesDirectoryPath, platform), "", outputProjectMtime);
+			}
+			else {
+				hasChangesInResources = true;
+			}
+			console.timeEnd("Iterate resources files");
+			if (hasChangesInResources) {
+				this.track("copyAppResources", () => this.copyAppResources(platform).wait() );
+			}
+
+			if (hasChangesInApp || hasChangesInResources) {
+				this.track("prepareProject", () => platformData.platformProjectService.prepareProject().wait() );
+			}
+
+			// do only if there are no tns-modules, or if there is something changed, or if syncAllFiles
+			// console.time("Iterate modules files");
+			let hasChangesInModules = false;
+			// if (this.$fs.exists(projectAbsolutePath).wait()) {
+			//  	let outputProjectMtime = this.$fs.getFsStats(projectAbsolutePath).wait().mtime.getTime();
+			// 	let tnsPath = path.join(this.$projectData.projectDir, constants.NODE_MODULES_FOLDER_NAME);
+			// 	hasChangesInModules = this.containsNewerFiles(tnsPath, "", outputProjectMtime);
+			// }
+			// else {
+			// 	hasChangesInModules = true;
+			// }
+			// console.timeEnd("Iterate modules files");
+			//if (hasChangesInModules) {
+				this.track("copyTnsModules", () =>  this.copyTnsModules(platform).wait());
+			//}
+
+			// separate in two parts, one for app, one for tns_modules. this will increase the speed dramatically in angular!
+			this.track("preparePlatformSpecificFiles", () => this.preparePlatformSpecificFiles(platform).wait() );
+
+			this.track("applyBaseConfigOption", () => this.applyBaseConfigOption(platformData).wait() );
+			this.track("ensureConfigurationFileInAppResources", () => platformData.platformProjectService.ensureConfigurationFileInAppResources().wait());
+			
+			// merge resources only when there is something changed
+			if (hasChangesInResources || hasChangesInModules) {
+				this.track("processConfigurationFilesFromAppResources", () => platformData.platformProjectService.processConfigurationFilesFromAppResources().wait());
+			}
+
+			this.track("interpolateConfigurationFile", () => platformData.platformProjectService.interpolateConfigurationFile().wait());
+
+			if (hasChangesInApp || hasChangesInResources) { // || hasChangesInModules) {
+				console.log("Contains changes!");
+			}
+			else {
+				console.log("Can skip the build process");
+			}
+
+			return true;
+		}).future<boolean>()();
+	}
+
+	private copyAppFiles(platform: string): IFuture<boolean> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
+			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
 			let appSourceDirectoryPath = path.join(this.$projectData.projectDir, constants.APP_FOLDER_NAME);
+
+			this.$fs.ensureDirectoryExists(appDestinationDirectoryPath).wait();
 
 			// Delete the destination app in order to prevent EEXIST errors when symlinks are used.
 			let contents = this.$fs.readDirectory(appDestinationDirectoryPath).wait();
@@ -265,8 +369,9 @@ export class PlatformService implements IPlatformService {
 				sourceFiles = sourceFiles.filter(source => !minimatch(source, `**/${constants.TNS_MODULES_FOLDER_NAME}/**`, { nocase: true }));
 			}
 
-			// verify .xml files are well-formed
-			this.$xmlValidator.validateXmlFiles(sourceFiles).wait();
+			if (!this.$xmlValidator.validateXmlFiles(sourceFiles).wait()) {
+				return false;
+			}
 
 			// Remove .ts and .js.map files in release
 			if (this.$options.release) {
@@ -282,20 +387,35 @@ export class PlatformService implements IPlatformService {
 			});
 			Future.wait(copyFileFutures);
 
-			// Copy App_Resources to project root folder
+			return true;
+
+		}).future<boolean>()();
+	}
+
+	private copyAppResources(platform: string): IFuture<void> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
+			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
+
 			this.$fs.ensureDirectoryExists(platformData.platformProjectService.getAppResourcesDestinationDirectoryPath().wait()).wait(); // Should be deleted
+
 			let appResourcesDirectoryPath = path.join(appDestinationDirectoryPath, constants.APP_RESOURCES_FOLDER_NAME);
 			if (this.$fs.exists(appResourcesDirectoryPath).wait()) {
 				platformData.platformProjectService.prepareAppResources(appResourcesDirectoryPath).wait();
 				shell.cp("-Rf", path.join(appResourcesDirectoryPath, platformData.normalizedPlatformName, "*"), platformData.platformProjectService.getAppResourcesDestinationDirectoryPath().wait());
 				this.$fs.deleteDirectory(appResourcesDirectoryPath).wait();
 			}
+		}).future<void>()();
+	}
 
-			platformData.platformProjectService.prepareProject().wait();
+	private copyTnsModules(platform: string): IFuture<void> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
+			let appDestinationDirectoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
+			let lastModifiedTime = this.$fs.exists(appDestinationDirectoryPath).wait() ? this.$fs.getFsStats(appDestinationDirectoryPath).wait().mtime : null;
 
-			let appDir = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
 			try {
-				let tnsModulesDestinationPath = path.join(appDir, constants.TNS_MODULES_FOLDER_NAME);
+				let tnsModulesDestinationPath = path.join(appDestinationDirectoryPath, constants.TNS_MODULES_FOLDER_NAME);
 				if (!this.$options.bundle) {
 					// Process node_modules folder
 					this.$broccoliBuilder.prepareNodeModules(tnsModulesDestinationPath, platform, lastModifiedTime).wait();
@@ -305,26 +425,19 @@ export class PlatformService implements IPlatformService {
 				}
 			} catch (error) {
 				this.$logger.debug(error);
-				shell.rm("-rf", appDir);
+				shell.rm("-rf", appDestinationDirectoryPath);
 				this.$errors.failWithoutHelp(`Processing node_modules failed. ${error}`);
 			}
+		}).future<void>()();
+	}
 
-			// Process platform specific files
+	private preparePlatformSpecificFiles(platform: string): IFuture<void> {
+		return (() => {
+			let platformData = this.$platformsData.getPlatformData(platform);
 			let directoryPath = path.join(platformData.appDestinationDirectoryPath, constants.APP_FOLDER_NAME);
-			let excludedDirs = [constants.APP_RESOURCES_FOLDER_NAME];
+			let excludedDirs = [constants.APP_RESOURCES_FOLDER_NAME, constants.TNS_MODULES_FOLDER_NAME];
 			this.$projectFilesManager.processPlatformSpecificFiles(directoryPath, platform, excludedDirs).wait();
-
-			this.applyBaseConfigOption(platformData).wait();
-
-			// Process configurations files from App_Resources
-			platformData.platformProjectService.processConfigurationFilesFromAppResources().wait();
-
-			// Replace placeholders in configuration files
-			platformData.platformProjectService.interpolateConfigurationFile().wait();
-
-			this.$logger.out("Project successfully prepared ("+platform+")");
-			return true;
-		}).future<boolean>()();
+		}).future<void>()();
 	}
 
 	public buildPlatform(platform: string, buildConfig?: IBuildConfig): IFuture<void> {
@@ -348,10 +461,11 @@ export class PlatformService implements IPlatformService {
 
 	public buildForDeploy(platform: string, buildConfig?: IBuildConfig): IFuture<void> {
 		return (() => {
-			platform = platform.toLowerCase();
-			let platformData = this.$platformsData.getPlatformData(platform);
-			platformData.platformProjectService.buildForDeploy(platformData.projectRoot, buildConfig).wait();
-			this.$logger.out("Project successfully built");
+			// platform = platform.toLowerCase();
+			// let platformData = this.$platformsData.getPlatformData(platform);
+			// platformData.platformProjectService.buildForDeploy(platformData.projectRoot, buildConfig).wait();
+			//this.$logger.out("Project successfully built");
+			process.exit();
 		}).future<void>()();
 	}
 

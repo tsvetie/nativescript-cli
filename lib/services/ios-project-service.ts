@@ -609,10 +609,14 @@ We will now place an empty obsolete compatability white screen LauncScreen.xib f
 	public processConfigurationFilesFromAppResources(): IFuture<void> {
 		return (() => {
 			this.mergeInfoPlists().wait();
+			
+			// execute if there are dhanges in resources
 			this.mergeProjectXcconfigFiles().wait();
-			_(this.getAllInstalledPlugins().wait())
-				.map(pluginData => this.$pluginVariablesService.interpolatePluginVariables(pluginData, this.platformData.configurationFilePath).wait())
-				.value();
+
+			// execute if there are changes in plugins (node_modules)
+			 _(this.getAllInstalledPlugins().wait())
+			 	.map(pluginData => this.$pluginVariablesService.interpolatePluginVariables(pluginData, this.platformData.configurationFilePath).wait())
+			 	.value();
 			this.$pluginVariablesService.interpolateAppIdentifier(this.platformData.configurationFilePath).wait();
 		}).future<void>()();
 	}
@@ -1023,7 +1027,6 @@ We will now place an empty obsolete compatability white screen LauncScreen.xib f
 				this.$fs.writeFile(projectFile, "").wait();
 			}
 
-			this.checkIfXcodeprojIsRequired().wait();
 			let escapedProjectFile = projectFile.replace(/'/g, "\\'"),
 				escapedPluginFile = pluginFile.replace(/'/g, "\\'"),
 				mergeScript = `require 'xcodeproj'; Xcodeproj::Config.new('${escapedProjectFile}').merge(Xcodeproj::Config.new('${escapedPluginFile}')).save_as(Pathname.new('${escapedProjectFile}'))`;
@@ -1033,30 +1036,55 @@ We will now place an empty obsolete compatability white screen LauncScreen.xib f
 
 	private mergeProjectXcconfigFiles(): IFuture<void> {
 		return (() => {
-			this.$fs.deleteFile(this.pluginsDebugXcconfigFilePath).wait();
-			this.$fs.deleteFile(this.pluginsReleaseXcconfigFilePath).wait();
+			this.$fs.deleteFile(this.$options.release ? this.pluginsReleaseXcconfigFilePath : this.pluginsDebugXcconfigFilePath).wait();
 
 			let allPlugins: IPluginData[] = (<IPluginsService>this.$injector.resolve("pluginsService")).getAllInstalledPlugins().wait();
 			for (let plugin of allPlugins) {
 				let pluginPlatformsFolderPath = plugin.pluginPlatformsFolderPath(IOSProjectService.IOS_PLATFORM_NAME);
 				let pluginXcconfigFilePath = path.join(pluginPlatformsFolderPath, "build.xcconfig");
 				if (this.$fs.exists(pluginXcconfigFilePath).wait()) {
-					this.mergeXcconfigFiles(pluginXcconfigFilePath, this.pluginsDebugXcconfigFilePath).wait();
-					this.mergeXcconfigFiles(pluginXcconfigFilePath, this.pluginsReleaseXcconfigFilePath).wait();
+					this.mergeXcconfigFiles(pluginXcconfigFilePath, this.$options.release ? this.pluginsReleaseXcconfigFilePath : this.pluginsDebugXcconfigFilePath).wait();
 				}
 			}
 
-			let appResourcesXcconfigPath = path.join(this.$projectData.projectDir, constants.APP_FOLDER_NAME, constants.APP_RESOURCES_FOLDER_NAME, this.platformData.normalizedPlatformName, "build.xcconfig");
-			if (this.$fs.exists(appResourcesXcconfigPath).wait()) {
-				this.mergeXcconfigFiles(appResourcesXcconfigPath, this.pluginsDebugXcconfigFilePath).wait();
-				this.mergeXcconfigFiles(appResourcesXcconfigPath, this.pluginsReleaseXcconfigFilePath).wait();
+			console.time("Iterate files");
+			let hasChanges = true;
+			let projectAbsolutePath = path.join(this.platformData.projectRoot, "project");
+			if (this.$fs.exists(projectAbsolutePath).wait()) {
+			 	let outputProjectMtime = this.$fs.getFsStats(projectAbsolutePath).wait().mtime.getTime();
+				let appResourcesPath = path.join(this.$projectData.projectDir, constants.APP_FOLDER_NAME, constants.APP_RESOURCES_FOLDER_NAME, this.platformData.normalizedPlatformName);
+				let foundChange = false;
+				let files = this.$fs.readDirectory(appResourcesPath).wait();
+				for (let name of files) {
+					let file = path.join(appResourcesPath, name);
+					let stat = this.$fs.getFsStats(file).wait();
+					let mtime = stat.mtime.getTime();
+					if (mtime > outputProjectMtime) {
+						foundChange = true;
+						break;
+					}
+				}
+				hasChanges = foundChange;
+			}
+			this.$fs.writeFile(projectAbsolutePath, "Last build: " + new Date().toString()).wait();
+			console.timeEnd("Iterate files");
+
+			// merge resources only when there are changes
+			if (hasChanges) {
+				let appResourcesXcconfigPath = path.join(this.$projectData.projectDir, constants.APP_FOLDER_NAME, constants.APP_RESOURCES_FOLDER_NAME, this.platformData.normalizedPlatformName, "build.xcconfig");
+				if (this.$fs.exists(appResourcesXcconfigPath).wait()) {
+					this.mergeXcconfigFiles(appResourcesXcconfigPath, this.$options.release ? this.pluginsReleaseXcconfigFilePath : this.pluginsDebugXcconfigFilePath).wait();
+				}
 			}
 
 			let podFilesRootDirName = path.join("Pods", "Target Support Files", `Pods-${this.$projectData.projectName}`);
 			let podFolder = path.join(this.platformData.projectRoot, podFilesRootDirName);
 			if (this.$fs.exists(podFolder).wait()) {
-				this.mergeXcconfigFiles(path.join(this.platformData.projectRoot, podFilesRootDirName, `Pods-${this.$projectData.projectName}.debug.xcconfig`), this.pluginsDebugXcconfigFilePath).wait();
-				this.mergeXcconfigFiles(path.join(this.platformData.projectRoot, podFilesRootDirName, `Pods-${this.$projectData.projectName}.release.xcconfig`), this.pluginsReleaseXcconfigFilePath).wait();
+				if (this.$options.release) {
+					this.mergeXcconfigFiles(path.join(this.platformData.projectRoot, podFilesRootDirName, `Pods-${this.$projectData.projectName}.release.xcconfig`), this.pluginsReleaseXcconfigFilePath).wait();
+				} else {
+					this.mergeXcconfigFiles(path.join(this.platformData.projectRoot, podFilesRootDirName, `Pods-${this.$projectData.projectName}.debug.xcconfig`), this.pluginsDebugXcconfigFilePath).wait();
+				}
 			}
 		}).future<void>()();
 	}
