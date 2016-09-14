@@ -21,7 +21,7 @@ import * as ChildProcessLib from "../lib/common/child-process";
 
 require("should");
 let temp = require("temp");
-temp.track();
+//temp.track();
 
 function createTestInjector() {
 	let testInjector = new yok.Yok();

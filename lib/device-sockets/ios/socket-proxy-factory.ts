@@ -10,7 +10,8 @@ export class SocketProxyFactory implements ISocketProxyFactory {
 		private $config: IConfiguration,
 		private $projectData: IProjectData,
 		private $projectDataService: IProjectDataService,
-		private $options: IOptions) { }
+		private $options: IOptions,
+		private $processService: IProcessService) { }
 
 	public createSocketProxy(factory: () => net.Socket): IFuture<any> {
 		return (() => {
@@ -104,14 +105,30 @@ export class SocketProxyFactory implements ISocketProxyFactory {
 				}
 			});
 
+			this.$processService.attachToProcessExitSignals(this, () => {
+					console.log("destroying32323");
+					frontendSocket.end();
+					frontendSocket.destroy();
+
+			});
+
 			socketFactory((backendSocket: net.Socket) => {
 				this.$logger.info("Backend socket created.");
 
 				backendSocket.on("end", () => {
 					this.$logger.info("Backend socket closed!");
-					if (!(this.$config.debugLivesync && this.$options.watch)) {
-						process.exit(0);
-					}
+					// if (!(this.$config.debugLivesync && this.$options.watch)) {
+					// 	// process.exit(0);
+					// }
+				});
+
+				this.$processService.attachToProcessExitSignals(this, () => {
+					console.log("destroying");
+					backendSocket.end();
+					frontendSocket.end();
+					backendSocket.destroy();
+					frontendSocket.destroy();
+
 				});
 
 				backendSocket.pipe(frontendSocket);
@@ -120,11 +137,25 @@ export class SocketProxyFactory implements ISocketProxyFactory {
 			});
 		});
 
-		let socketFileLocation = temp.path({ suffix: ".sock" });
-		server.listen(socketFileLocation);
+		console.log("createTcpSocketProxy");
+		// require("fs").writeFileSync("/Users/koeva/Documents/socket.sock", "");// 
+
+
+		let socketFileLocation =  temp.path({ suffix: ".sock" });
+
+		// setTimeout(() => {
+			server.listen(socketFileLocation);
+		// }, 2000);
+
+		
 		if(!this.$options.client) {
 			this.$logger.info("socket-file-location: " + socketFileLocation);
 		}
+
+		this.$processService.attachToProcessExitSignals(this, () => {
+			server.close();
+		});
+
 
 		return socketFileLocation;
 	}

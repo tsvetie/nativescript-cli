@@ -15,7 +15,7 @@ import {Yok} from '../lib/common/yok';
 import * as stubs from './stubs';
 import * as path from "path";
 import * as temp from "temp";
-temp.track();
+//temp.track();
 
 function createTestInjector(): IInjector {
 	let testInjector = new Yok();

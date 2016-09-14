@@ -29,7 +29,7 @@ let dummyString: string = "dummyString";
 let hasPromptedForString = false;
 let originalIsInteractive = helpers.isInteractive;
 
-temp.track();
+//temp.track();
 
 class ProjectIntegrationTest {
 	public testInjector: IInjector;

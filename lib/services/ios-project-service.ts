@@ -235,7 +235,7 @@ export class IOSProjectService extends projectServiceBaseLib.PlatformProjectServ
 </plist>`;
 
 			// Save the options...
-			temp.track();
+			//temp.track();
 			let exportOptionsPlist = temp.path({ prefix: "export-", suffix: ".plist" });
 			this.$fs.writeFile(exportOptionsPlist, plistTemplate).wait();
 

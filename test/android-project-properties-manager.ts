@@ -10,7 +10,7 @@ import * as OptionsLib from "../lib/options";
 import * as yok from "../lib/common/yok";
 import * as path from "path";
 import temp = require("temp");
-temp.track();
+//temp.track();
 import {assert} from "chai";
 
 function createTestInjector(): IInjector {

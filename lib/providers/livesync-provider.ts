@@ -86,7 +86,7 @@ export class LiveSyncProvider implements ILiveSyncProvider {
 			if (deviceAppData.platform.toLowerCase() === "android" || !deviceAppData.deviceSyncZipPath || !isFullSync) {
 				deviceAppData.device.fileSystem.transferFiles(deviceAppData, localToDevicePaths).wait();
 			} else {
-				temp.track();
+				//temp.track();
 				let tempZip = temp.path({prefix: "sync", suffix: ".zip"});
 				this.$logger.trace("Creating zip file: " + tempZip);
 

@@ -36,7 +36,7 @@ import { XmlValidator } from "../lib/xml-validator";
 import StaticConfigLib = require("../lib/config");
 import * as path from "path";
 import * as temp from "temp";
-temp.track();
+//temp.track();
 
 let isErrorThrown = false;
 

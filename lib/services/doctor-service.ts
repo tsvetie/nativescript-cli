@@ -176,7 +176,7 @@ class DoctorService implements IDoctorService {
 		this.$logger.out("Verifying CocoaPods. This may take more than a minute, please be patient.");
 
 		let temp = require("temp");
-		temp.track();
+		//temp.track();
 		let projDir = temp.mkdirSync("nativescript-check-cocoapods");
 
 		let spinner = new clui.Spinner("Installing iOS runtime.");

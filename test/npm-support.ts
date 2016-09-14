@@ -31,7 +31,7 @@ import Future = require("fibers/future");
 import path = require("path");
 import temp = require("temp");
 import shelljs = require("shelljs");
-temp.track();
+//temp.track();
 
 let assert = require("chai").assert;
 let nodeModulesFolderName = "node_modules";

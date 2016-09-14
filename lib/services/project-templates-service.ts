@@ -2,7 +2,7 @@ import * as path from "path";
 import * as temp from "temp";
 import * as constants from "../constants";
 import {EOL} from "os";
-temp.track();
+//temp.track();
 
 export class ProjectTemplatesService implements IProjectTemplatesService {
 	private static RESERVED_TEMPLATE_NAMES: IStringDictionary = {

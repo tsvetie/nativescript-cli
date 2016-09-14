@@ -27,7 +27,7 @@ import {CocoaPodsService} from "../lib/services/cocoapods-service";
 import {assert} from "chai";
 import temp = require("temp");
 
-temp.track();
+//temp.track();
 
 class IOSSimulatorDiscoveryMock extends DeviceDiscovery {
 	public startLookingForDevices(): IFuture<void> {

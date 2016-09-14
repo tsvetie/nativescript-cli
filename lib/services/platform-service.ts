@@ -6,7 +6,7 @@ import * as semver from "semver";
 import * as minimatch from "minimatch";
 import Future = require("fibers/future");
 import * as temp from "temp";
-temp.track();
+//temp.track();
 let clui = require("clui");
 
 export class PlatformService implements IPlatformService {

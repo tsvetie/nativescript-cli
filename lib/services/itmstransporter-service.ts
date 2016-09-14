@@ -30,7 +30,7 @@ export class ITMSTransporterService implements IITMSTransporterService {
 				this.$errors.failWithoutHelp("iOS publishing is only available on Mac OS X.");
 			}
 
-			temp.track();
+			//temp.track();
 			let itmsTransporterPath = this.getITMSTransporterPath().wait(),
 				ipaFileName = "app.ipa",
 				itmsDirectory = temp.mkdirSync("itms-"),
@@ -121,7 +121,7 @@ export class ITMSTransporterService implements IITMSTransporterService {
 					}
 
 					this.$logger.trace("--ipa set - extracting .ipa file to get app's bundle identifier");
-					temp.track();
+					//temp.track();
 					let destinationDir = temp.mkdirSync("ipa-");
 					this.$fs.unzip(ipaFileFullPath, destinationDir).wait();
 
