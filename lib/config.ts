@@ -1,6 +1,3 @@
-///<reference path=".d.ts"/>
-"use strict";
-
 import * as path from "path";
 import {StaticConfigBase} from "./common/static-config-base";
 import {ConfigBase} from "./common/config-base";
@@ -12,6 +9,7 @@ export class Configuration extends ConfigBase implements IConfiguration { // Use
 	USE_PROXY = false;
 	ANDROID_DEBUG_UI: string = null;
 	USE_POD_SANDBOX: boolean = true;
+	debugLivesync: boolean = false;
 
 	/*don't require logger and everything that has logger as dependency in config.js due to cyclic dependency*/
 	constructor(protected $fs: IFileSystem) {
@@ -27,11 +25,9 @@ export class StaticConfig extends StaticConfigBase implements IStaticConfig {
 	public CLIENT_NAME = "tns";
 	public CLIENT_NAME_ALIAS = "NativeScript";
 	public ANALYTICS_API_KEY = "5752dabccfc54c4ab82aea9626b7338e";
-	public ANALYTICS_FEATURE_USAGE_TRACKING_API_KEY = "9912cff308334c6d9ad9c33f76a983e3";
 	public TRACK_FEATURE_USAGE_SETTING_NAME = "TrackFeatureUsage";
 	public ERROR_REPORT_SETTING_NAME = "TrackExceptions";
 	public ANALYTICS_INSTALLATION_ID_SETTING_NAME = "AnalyticsInstallationID";
-	public START_PACKAGE_ACTIVITY_NAME = "com.tns.NativeScriptActivity";
 	public INSTALLATION_SUCCESS_MESSAGE = "Installation successful. You are good to go. Connect with us on `http://twitter.com/NativeScript`.";
 
 	constructor($injector: IInjector) {
@@ -46,7 +42,7 @@ export class StaticConfig extends StaticConfigBase implements IStaticConfig {
 
 	public get SYS_REQUIREMENTS_LINK(): string {
 		let linkToSysRequirements: string;
-		switch(process.platform) {
+		switch (process.platform) {
 			case "linux":
 				linkToSysRequirements = "http://docs.nativescript.org/setup/ns-cli-setup/ns-setup-linux.html#system-requirements";
 				break;
@@ -77,13 +73,13 @@ export class StaticConfig extends StaticConfigBase implements IStaticConfig {
 		return path.join(__dirname, "..", "package.json");
 	}
 
-	public get PATH_TO_BOOTSTRAP() : string {
+	public get PATH_TO_BOOTSTRAP(): string {
 		return path.join(__dirname, "bootstrap");
 	}
 
 	public getAdbFilePath(): IFuture<string> {
 		return (() => {
-			if(!this._adbFilePath) {
+			if (!this._adbFilePath) {
 				let androidToolsInfo: IAndroidToolsInfo = this.$injector.resolve("androidToolsInfo");
 				this._adbFilePath = androidToolsInfo.getPathToAdbFromAndroidHome().wait() || super.getAdbFilePath().wait();
 			}

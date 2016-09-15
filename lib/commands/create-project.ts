@@ -1,6 +1,3 @@
-///<reference path="../.d.ts"/>
-"use strict";
-
 import * as constants from "../constants";
 
 export class CreateProjectCommand implements ICommand {
@@ -13,11 +10,18 @@ export class CreateProjectCommand implements ICommand {
 
 	execute(args: string[]): IFuture<void> {
 		return (() => {
-			if (this.$options.ng && this.$options.template) {
-				this.$errors.fail("You cannot use --ng and --template simultaneously.");
+			if ((this.$options.tsc || this.$options.ng) && this.$options.template) {
+				this.$errors.fail("You cannot use --ng or --tsc options together with --template.");
 			}
 
-			let selectedTemplate = this.$options.ng ? constants.ANGULAR_NAME : this.$options.template;
+			let selectedTemplate: string;
+			if (this.$options.tsc) {
+				selectedTemplate = constants.TYPESCRIPT_NAME;
+			} else if (this.$options.ng) {
+				selectedTemplate = constants.ANGULAR_NAME;
+			} else {
+				selectedTemplate = this.$options.template;
+			}
 
 			this.$projectService.createProject(args[0], selectedTemplate).wait();
 		}).future<void>()();

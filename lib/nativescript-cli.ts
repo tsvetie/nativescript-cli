@@ -1,8 +1,6 @@
-///<reference path=".d.ts"/>
-"use strict";
-
+let node = require("../package.json").engines.node;
 // this call must be first to avoid requiring c++ dependencies
-require("./common/verify-node-version").verifyNodeVersion(require("../package.json").engines.node);
+require("./common/verify-node-version").verifyNodeVersion(node, "NativeScript", "2.2.0");
 
 require("./bootstrap");
 import * as fiber from "fibers";
@@ -21,6 +19,9 @@ fiber(() => {
 
 	let messages: IMessagesService = $injector.resolve("$messagesService");
 	messages.pathsToMessageJsonFiles = [/* Place client-specific json message file paths here */];
+
+	let processService: IProcessService = $injector.resolve("$processService");
+	processService.attachToProcessExitSignals(this, process.exit);
 
 	if (process.argv[2] === "completion") {
 		commandDispatcher.completeCommand().wait();

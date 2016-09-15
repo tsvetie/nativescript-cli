@@ -1,6 +1,3 @@
-///<reference path=".d.ts"/>
-"use strict";
-
 import { EOL } from "os";
 import * as constants from "./constants";
 
@@ -18,8 +15,8 @@ export class XmlValidator implements IXmlValidator {
 					let hasErrors = !!errorOutput;
 					xmlHasErrors = xmlHasErrors || hasErrors;
 					if (hasErrors) {
-						this.$logger.warn(`${file} has syntax errors.`);
-						this.$logger.out(errorOutput);
+						this.$logger.info(`${file} has syntax errors.`.red.bold);
+						this.$logger.out(errorOutput.yellow);
 					}
 				});
 			return !xmlHasErrors;

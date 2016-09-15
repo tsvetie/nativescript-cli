@@ -1,6 +1,3 @@
-///<reference path="../.d.ts"/>
-"use strict";
-
 import * as path from "path";
 
 export class AndroidProjectPropertiesManager implements IAndroidProjectPropertiesManager {
@@ -34,7 +31,7 @@ export class AndroidProjectPropertiesManager implements IAndroidProjectPropertie
 	public addProjectReference(referencePath: string): IFuture<void> {
 		return (() => {
 			let references = this.getProjectReferences().wait();
-			let libRefExists = _.any(references, r => path.normalize(r.path) === path.normalize(referencePath));
+			let libRefExists = _.some(references, r => path.normalize(r.path) === path.normalize(referencePath));
 			if(!libRefExists) {
 				this.addToPropertyList("android.library.reference", referencePath).wait();
 			}
@@ -44,7 +41,7 @@ export class AndroidProjectPropertiesManager implements IAndroidProjectPropertie
 	public removeProjectReference(referencePath: string): IFuture<void> {
 		return (() => {
 			let references = this.getProjectReferences().wait();
-			let libRefExists = _.any(references, r => path.normalize(r.path) === path.normalize(referencePath));
+			let libRefExists = _.some(references, r => path.normalize(r.path) === path.normalize(referencePath));
 			if(libRefExists) {
 				this.removeFromPropertyList("android.library.reference", referencePath).wait();
 			} else {

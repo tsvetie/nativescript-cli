@@ -25,6 +25,7 @@ $injector.require("androidDebugService", "./services/android-debug-service");
 
 $injector.require("userSettingsService", "./services/user-settings-service");
 $injector.require("analyticsSettingsService", "./services/analytics-settings-service");
+$injector.require("analyticsService", "./services/analytics-service");
 
 $injector.require("emulatorSettingsService", "./services/emulator-settings-service");
 
@@ -82,7 +83,9 @@ $injector.requireCommand("plugin|*list", "./commands/plugin/list-plugins");
 $injector.requireCommand("plugin|find", "./commands/plugin/find-plugins");
 $injector.requireCommand("plugin|search", "./commands/plugin/find-plugins");
 $injector.requireCommand("plugin|add", "./commands/plugin/add-plugin");
+$injector.requireCommand("plugin|install", "./commands/plugin/add-plugin");
 $injector.requireCommand("plugin|remove", "./commands/plugin/remove-plugin");
+$injector.requireCommand("plugin|update", "./commands/plugin/update-plugin");
 
 $injector.require("doctorService", "./services/doctor-service");
 $injector.require("xcprojService", "./services/xcproj-service");
@@ -97,10 +100,14 @@ $injector.requireCommand("info", "./commands/info");
 
 $injector.require("androidToolsInfo", "./android-tools-info");
 
+$injector.requireCommand("platform|clean", "./commands/platform-clean");
+
 $injector.requireCommand("livesync", "./commands/livesync");
 $injector.require("usbLiveSyncService", "./services/livesync/livesync-service"); // The name is used in https://github.com/NativeScript/nativescript-dev-typescript
-$injector.require("iosLiveSyncServiceLocator", "./services/livesync/ios-livesync-service");
-$injector.require("androidLiveSyncServiceLocator", "./services/livesync/android-livesync-service");
+$injector.require("iosPlatformLiveSyncServiceLocator", "./services/livesync/ios-platform-livesync-service");
+$injector.require("iosLiveSyncServiceLocator", "./services/livesync/ios-device-livesync-service");
+$injector.require("androidPlatformLiveSyncServiceLocator", "./services/livesync/android-platform-livesync-service");
+$injector.require("androidLiveSyncServiceLocator", "./services/livesync/android-device-livesync-service");
 
 $injector.require("sysInfo", "./sys-info");
 
@@ -108,5 +115,5 @@ $injector.require("iOSNotificationService", "./services/ios-notification-service
 $injector.require("socketProxyFactory", "./device-sockets/ios/socket-proxy-factory");
 $injector.require("iOSNotification", "./device-sockets/ios/notification");
 $injector.require("iOSSocketRequestExecutor", "./device-sockets/ios/socket-request-executor");
-$injector.require("messages", "./messages");
+$injector.require("messages", "./common/messages/messages");
 $injector.require("xmlValidator", "./xml-validator");

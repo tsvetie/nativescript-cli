@@ -1,9 +1,8 @@
-///<reference path=".d.ts"/>
 /* tslint:disable:no-empty */
-"use strict";
 
 import Future = require("fibers/future");
 import * as util from "util";
+import * as chai from "chai";
 
 export class LoggerStub implements ILogger {
 	setLevel(level: string): void { }
@@ -342,6 +341,9 @@ export class PlatformProjectServiceStub implements IPlatformProjectService {
 	afterPrepareAllPlugins(): IFuture<void> {
 		return Future.fromResult();
 	}
+	beforePrepareAllPlugins(): IFuture<void> {
+		return Future.fromResult();
+	}
 	deploy(deviceIdentifier: string): IFuture<void> {
 		return Future.fromResult();
 	}
@@ -407,11 +409,149 @@ export class HooksServiceStub implements IHooksService {
 }
 
 export class LockFile {
+
+	check(): IFuture<boolean> {
+		return (() => { return false; }).future<boolean>()();
+	}
+
 	lock(): IFuture<void> {
 		return (() => {}).future<void>()();
 	}
 
 	unlock(): IFuture<void> {
 	 	return (() => {}).future<void>()();
+	}
+}
+
+export class PrompterStub implements IPrompter {
+	private strings: IDictionary<string> = {};
+	private passwords: IDictionary<string> = {};
+
+	expect(options?: { strings: IDictionary<string>, passwords: IDictionary<string> } ) {
+		if (options) {
+			this.strings = options.strings || this.strings;
+			this.passwords = options.passwords || this.passwords;
+		}
+	}
+
+	get(schemas: IPromptSchema[]): IFuture<any> {
+		throw unreachable();
+	}
+	getPassword(prompt: string, options?: IAllowEmpty): IFuture<string> {
+		chai.assert.ok(prompt in this.passwords, `PrompterStub didn't expect to give password for: ${prompt}`);
+		let result = this.passwords[prompt];
+		delete this.passwords[prompt];
+		return (() => {
+			return result;
+		}).future<string>()();
+	}
+	getString(prompt: string, options?: IPrompterOptions): IFuture<string> {
+		chai.assert.ok(prompt in this.strings, `PrompterStub didn't expect to be asked for: ${prompt}`);
+		let result = this.strings[prompt];
+		delete this.strings[prompt];
+		return (() => {
+			return result;
+		}).future<string>()();
+	}
+	promptForChoice(promptMessage: string, choices: any[]): IFuture<string> {
+		throw unreachable();
+	}
+	confirm(prompt: string, defaultAction?: () => boolean): IFuture<boolean> {
+		throw unreachable();
+	}
+	dispose(): void {
+		throw unreachable();
+	}
+
+	assert() {
+		for (let key in this.strings) {
+			throw unexpected(`PrompterStub was instructed to reply with "${this.strings[key]}" to a "${key}" question, but was never asked!`);
+		}
+		for (let key in this.passwords) {
+			throw unexpected(`PrompterStub was instructed to reply with "${this.passwords[key]}" to a "${key}" password request, but was never asked!`);
+		}
+	}
+}
+
+function unreachable(): Error {
+	return unexpected("Test case should not reach this point.");
+}
+
+function unexpected(msg: string): Error {
+	let err = new chai.AssertionError(msg);
+	err.showDiff = false;
+	return err;
+}
+
+export class DebugServiceStub implements IDebugService {
+	public debug(shouldBreak?: boolean): IFuture<void> {
+		return Future.fromResult();
+	}
+
+	public debugStart(): IFuture<void> {
+		return Future.fromResult();
+	}
+
+	public debugStop(): IFuture<void> {
+		return Future.fromResult();
+	}
+
+	public platform: string;
+}
+
+export class LiveSyncServiceStub implements ILiveSyncService {
+	public liveSync(platform: string, applicationReloadAction?: (deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]) => IFuture<void>): IFuture<void> {
+		return Future.fromResult();
+	}
+
+	public forceExecuteFullSync: boolean;
+}
+
+export class AndroidToolsInfoStub implements IAndroidToolsInfo {
+	public getToolsInfo(): IFuture<IAndroidToolsInfoData> {
+		let infoData: IAndroidToolsInfoData = Object.create(null);
+		infoData.androidHomeEnvVar = "";
+		infoData.compileSdkVersion = 23;
+		infoData.buildToolsVersion = "23";
+		infoData.targetSdkVersion = 23;
+		infoData.supportRepositoryVersion = "23";
+		return Future.fromResult(infoData);
+	}
+
+	public validateInfo(options?: { showWarningsAsErrors: boolean, validateTargetSdk: boolean }): IFuture<boolean> {
+		return Future.fromResult(true);
+	}
+
+	public validateJavacVersion(installedJavaVersion: string, options?: { showWarningsAsErrors: boolean }): IFuture<boolean> {
+		return Future.fromResult(true);
+	}
+
+	public getPathToAndroidExecutable(options?: { showWarningsAsErrors: boolean }): IFuture<string> {
+		return Future.fromResult("");
+	}
+
+	getPathToAdbFromAndroidHome(): IFuture<string> {
+		return Future.fromResult("");
+	}
+}
+
+export class ChildProcessStub {
+	public spawnCount = 0;
+	public spawnFromEventCount = 0;
+	public lastCommand = "";
+	public lastCommandArgs: string[] = [];
+
+	public spawn(command: string, args?: string[], options?: any): any {
+		this.spawnCount ++;
+		this.lastCommand = command;
+		this.lastCommandArgs = args;
+		return null;
+	}
+
+	public spawnFromEvent(command: string, args: string[], event: string, options?: any, spawnFromEventOptions?: ISpawnFromEventOptions): IFuture<ISpawnResult> {
+		this.spawnFromEventCount ++;
+		this.lastCommand = command;
+		this.lastCommandArgs = args;
+		return Future.fromResult(null);
 	}
 }

@@ -11,6 +11,7 @@ interface IPlatformService {
 	buildForDeploy(platform: string, buildConfig?: IBuildConfig): IFuture<void>;
 	installOnDevice(platform: string, buildConfig?: IBuildConfig): IFuture<void>;
 	deployOnDevice(platform: string, buildConfig?: IBuildConfig): IFuture<void>;
+	startOnDevice(platform: string): IFuture<void>;
 	deployOnEmulator(platform: string, buildConfig?: IBuildConfig): IFuture<void>;
 	validatePlatformInstalled(platform: string): void;
 	validatePlatform(platform: string): void;
@@ -18,7 +19,10 @@ interface IPlatformService {
 	getLatestApplicationPackageForDevice(platformData: IPlatformData): IFuture<IApplicationPackage>;
 	getLatestApplicationPackageForEmulator(platformData: IPlatformData): IFuture<IApplicationPackage>;
 	copyLastOutput(platform: string, targetPath: string, settings: {isForDevice: boolean}): IFuture<void>;
+	lastOutputPath(platform: string, settings: { isForDevice: boolean }): string;
 	ensurePlatformInstalled(platform: string): IFuture<void>;
+
+	prepareAndExecute(platform: string, executeAction: () => IFuture<void>): IFuture<void>;
 }
 
 interface IPlatformData {

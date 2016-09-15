@@ -1,13 +1,40 @@
-﻿///<reference path="../.d.ts"/>
-"use strict";
-
-export class DebugPlatformCommand implements ICommand {
+﻿export class DebugPlatformCommand implements ICommand {
 	constructor(private debugService: IDebugService,
 		private $devicesService: Mobile.IDevicesService,
-		private $errors: IErrors,
+		private $injector: IInjector,
+		private $logger: ILogger,
+		private $childProcess: IChildProcess,
+		private $devicePlatformsConstants: Mobile.IDevicePlatformsConstants,
+		private $config: IConfiguration,
+		private $usbLiveSyncService: ILiveSyncService,
 		protected $options: IOptions) { }
 
 	execute(args: string[]): IFuture<void> {
+
+		if (this.$options.watch) {
+			this.$options.rebuild = false;
+		}
+
+		if (!this.$options.rebuild && !this.$options.start) {
+			this.$config.debugLivesync = true;
+			let applicationReloadAction = (deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]): IFuture<void> => {
+				return (() => {
+					let projectData: IProjectData = this.$injector.resolve("projectData");
+
+					this.debugService.debugStop().wait();
+
+					let applicationId = deviceAppData.appIdentifier;
+					if (deviceAppData.device.isEmulator && deviceAppData.platform.toLowerCase() === this.$devicePlatformsConstants.iOS.toLowerCase()) {
+						applicationId = projectData.projectName;
+					}
+					deviceAppData.device.applicationManager.stopApplication(applicationId).wait();
+
+					this.debugService.debug().wait();
+				}).future<void>()();
+			};
+
+			return this.$usbLiveSyncService.liveSync(this.$devicesService.platform, applicationReloadAction);
+		}
 		return this.debugService.debug();
 	}
 
@@ -16,14 +43,16 @@ export class DebugPlatformCommand implements ICommand {
 	canExecute(args: string[]): IFuture<boolean> {
 		return ((): boolean => {
 			this.$devicesService.initialize({ platform: this.debugService.platform, deviceId: this.$options.device }).wait();
-			if(this.$options.emulator) {
+			// Start emulator if --emulator is selected or no devices found.
+			if(this.$options.emulator || this.$devicesService.deviceCount === 0) {
 				return true;
 			}
 
-			if(this.$devicesService.deviceCount === 0) {
-				this.$errors.failWithoutHelp("No devices detected. Connect a device and try again.");
-			} else if (this.$devicesService.deviceCount > 1) {
-				this.$errors.fail("Cannot debug on multiple devices. Select device with --device option.");
+			if (this.$devicesService.deviceCount > 1) {
+				// Starting debugger on emulator.
+				this.$options.emulator = true;
+
+				this.$logger.warn("Multiple devices found! Starting debugger on emulator. If you want to debug on specific device please select device with --device option.".yellow.bold);
 			}
 
 			return true;
@@ -34,9 +63,14 @@ export class DebugPlatformCommand implements ICommand {
 export class DebugIOSCommand extends DebugPlatformCommand {
 	constructor($iOSDebugService: IDebugService,
 		$devicesService: Mobile.IDevicesService,
-		$errors: IErrors,
+		$injector: IInjector,
+		$logger: ILogger,
+		$childProcess: IChildProcess,
+		$devicePlatformsConstants: Mobile.IDevicePlatformsConstants,
+		$config: IConfiguration,
+		$usbLiveSyncService: ILiveSyncService,
 		$options: IOptions) {
-		super($iOSDebugService, $devicesService, $errors, $options);
+		super($iOSDebugService, $devicesService, $injector, $logger, $childProcess, $devicePlatformsConstants, $config, $usbLiveSyncService, $options);
 	}
 }
 $injector.registerCommand("debug|ios", DebugIOSCommand);
@@ -44,9 +78,14 @@ $injector.registerCommand("debug|ios", DebugIOSCommand);
 export class DebugAndroidCommand extends DebugPlatformCommand {
 	constructor($androidDebugService: IDebugService,
 		$devicesService: Mobile.IDevicesService,
-		$errors: IErrors,
+		$injector: IInjector,
+		$logger: ILogger,
+		$childProcess: IChildProcess,
+		$devicePlatformsConstants: Mobile.IDevicePlatformsConstants,
+		$config: IConfiguration,
+		$usbLiveSyncService: ILiveSyncService,
 		$options: IOptions) {
-		super($androidDebugService, $devicesService, $errors, $options);
+		super($androidDebugService, $devicesService, $injector, $logger, $childProcess, $devicePlatformsConstants, $config, $usbLiveSyncService, $options);
 	}
 }
 $injector.registerCommand("debug|android", DebugAndroidCommand);

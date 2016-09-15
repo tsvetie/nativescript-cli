@@ -1,27 +1,40 @@
-///<reference path="../../.d.ts"/>
-"use strict";
-
-import {AndroidDebugBridge} from "../../common/mobile/android/android-debug-bridge";
+import {DeviceAndroidDebugBridge} from "../../common/mobile/android/device-android-debug-bridge";
 import {AndroidDeviceHashService} from "../../common/mobile/android/android-device-hash-service";
 import Future = require("fibers/future");
 import * as helpers from "../../common/helpers";
-import liveSyncServiceBaseLib = require("./livesync-service-base");
 import * as path from "path";
 import * as net from "net";
 
-class AndroidLiveSyncService extends liveSyncServiceBaseLib.LiveSyncServiceBase<Mobile.IAndroidDevice> implements IPlatformLiveSyncService {
-	private static BACKEND_PORT = 18181;
+class AndroidLiveSyncService implements IDeviceLiveSyncService {
+	private static BACKEND_PORT = 18182;
+	private device: Mobile.IAndroidDevice;
 
 	constructor(_device: Mobile.IDevice,
 		private $fs: IFileSystem,
 		private $mobileHelper: Mobile.IMobileHelper,
 		private $options: IOptions,
 		private $injector: IInjector,
-		private $projectData: IProjectData) {
-		super(_device);
+		private $projectData: IProjectData,
+		private $androidDebugService: IDebugService,
+		private $liveSyncProvider: ILiveSyncProvider) {
+		this.device = <Mobile.IAndroidDevice>(_device);
 	}
 
-	public restartApplication(deviceAppData: Mobile.IDeviceAppData): IFuture<void> {
+	public get debugService(): IDebugService {
+		return this.$androidDebugService;
+	}
+
+	public refreshApplication(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[], forceExecuteFullSync: boolean): IFuture<void> {
+		let canExecuteFastSync = !forceExecuteFullSync && !_.some(localToDevicePaths, (localToDevicePath:any) => !this.$liveSyncProvider.canExecuteFastSync(localToDevicePath.getLocalPath(), deviceAppData.platform));
+
+		if (canExecuteFastSync) {
+			return this.reloadPage(deviceAppData, localToDevicePaths);
+		}
+
+		return this.restartApplication(deviceAppData);
+	}
+
+	private restartApplication(deviceAppData: Mobile.IDeviceAppData): IFuture<void> {
 		return (() => {
 			this.device.adb.executeShellCommand(["chmod", "777", deviceAppData.deviceProjectRootPath, `/data/local/tmp/${deviceAppData.appIdentifier}`]).wait();
 
@@ -43,7 +56,7 @@ class AndroidLiveSyncService extends liveSyncServiceBaseLib.LiveSyncServiceBase<
 				matchingFile = (listResult || "").match(regex);
 
 			// Check if there is already a file with deviceRootBasename. If so, delete it as it breaks LiveSyncing.
-			if(matchingFile && matchingFile[0] && _.startsWith(matchingFile[0], '-')){
+			if (matchingFile && matchingFile[0] && _.startsWith(matchingFile[0], '-')) {
 				this.device.adb.executeShellCommand(["rm", "-f", deviceRootPath]).wait();
 			}
 
@@ -53,7 +66,7 @@ class AndroidLiveSyncService extends liveSyncServiceBaseLib.LiveSyncServiceBase<
 		}).future<void>()();
 	}
 
-	public reloadPage(deviceAppData: Mobile.IDeviceAppData): IFuture<void> {
+	private reloadPage(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]): IFuture<void> {
 		return (() => {
 			this.device.adb.executeCommand(["forward", `tcp:${AndroidLiveSyncService.BACKEND_PORT.toString()}`, `localabstract:${deviceAppData.appIdentifier}-livesync`]).wait();
 			this.sendPageReloadMessage().wait();
@@ -64,7 +77,7 @@ class AndroidLiveSyncService extends liveSyncServiceBaseLib.LiveSyncServiceBase<
 		return (() => {
 			let deviceRootPath = this.getDeviceRootPath(appIdentifier);
 			_.each(localToDevicePaths, localToDevicePathData => {
-				let relativeUnixPath = _.trimLeft(helpers.fromWindowsRelativePathToUnix(localToDevicePathData.getRelativeToProjectBasePath()), "/");
+				let relativeUnixPath = _.trimStart(helpers.fromWindowsRelativePathToUnix(localToDevicePathData.getRelativeToProjectBasePath()), "/");
 				let deviceFilePath = this.$mobileHelper.buildDevicePath(deviceRootPath, "removedsync", relativeUnixPath);
 				this.device.adb.executeShellCommand(["mkdir", "-p", path.dirname(deviceFilePath), "&&", "touch", deviceFilePath]).wait();
 			});
@@ -73,8 +86,11 @@ class AndroidLiveSyncService extends liveSyncServiceBaseLib.LiveSyncServiceBase<
 		}).future<void>()();
 	}
 
-	public afterInstallApplicationAction(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]): IFuture<void> {
-		return this.deviceHashService.uploadHashFileToDevice(localToDevicePaths);
+	public afterInstallApplicationAction(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]): IFuture<boolean> {
+		return (() => {
+			 this.deviceHashService.uploadHashFileToDevice(localToDevicePaths).wait();
+			 return false;
+		}).future<boolean>()();
 	}
 
 	private getDeviceRootPath(appIdentifier: string): string {
@@ -83,30 +99,25 @@ class AndroidLiveSyncService extends liveSyncServiceBaseLib.LiveSyncServiceBase<
 
 	private sendPageReloadMessage(): IFuture<void> {
 		let future = new Future<void>();
-
 		let socket = new net.Socket();
 		socket.connect(AndroidLiveSyncService.BACKEND_PORT, '127.0.0.1', () => {
-			try {
-				socket.write(new Buffer([0, 0, 0, 1, 1]));
- 				future.return();
-			} catch(e) {
-				future.throw(e);
-			} finally {
-				socket.destroy();
-			}
+			socket.write(new Buffer([0, 0, 0, 1, 1]));
 		});
-
+		socket.on("data", (data: any) => {
+			socket.destroy();
+			future.return();
+		});
 		return future;
 	}
 
 	private _deviceHashService: Mobile.IAndroidDeviceHashService;
 	private get deviceHashService(): Mobile.IAndroidDeviceHashService {
 		if (!this._deviceHashService) {
-			let adb = this.$injector.resolve(AndroidDebugBridge, { identifier: this.device.deviceInfo.identifier });
+			let adb = this.$injector.resolve(DeviceAndroidDebugBridge, { identifier: this.device.deviceInfo.identifier });
 			this._deviceHashService = this.$injector.resolve(AndroidDeviceHashService, { adb: adb, appIdentifier: this.$projectData.projectId });
 		}
 
 		return this._deviceHashService;
 	}
 }
-$injector.register("androidLiveSyncServiceLocator", {factory: AndroidLiveSyncService});
+$injector.register("androidLiveSyncServiceLocator", { factory: AndroidLiveSyncService });

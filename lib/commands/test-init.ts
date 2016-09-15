@@ -1,9 +1,4 @@
-///<reference path="../.d.ts"/>
-
-"use strict";
-
 import * as path from 'path';
-import * as util from 'util';
 import {TESTING_FRAMEWORKS} from '../constants';
 
 class TestInitCommand implements ICommand {
@@ -62,7 +57,7 @@ class TestInitCommand implements ICommand {
 
 			this.$fs.writeFile(path.join(projectDir, 'karma.conf.js'), karmaConf).wait();
 
-			let exampleFilePath = this.$resources.resolvePath(util.format('test/example.%s.js', frameworkToInstall));
+			let exampleFilePath = this.$resources.resolvePath(`test/example.${frameworkToInstall}.js`);
 
 			if (shouldCreateSampleTests && this.$fs.exists(exampleFilePath).wait()) {
 				this.$fs.copyFile(exampleFilePath, path.join(testsDir, 'example.js')).wait();

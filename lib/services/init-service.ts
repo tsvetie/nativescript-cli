@@ -1,6 +1,3 @@
-///<reference path="../.d.ts"/>
-"use strict";
-
 import * as constants from "../constants";
 import * as helpers from "../common/helpers";
 import * as path from "path";
@@ -54,7 +51,7 @@ export class InitService implements IInitService {
 					let $platformsData = this.$injector.resolve("platformsData");
 					_.each($platformsData.platformsNames, platform => {
 						let platformData: IPlatformData = $platformsData.getPlatformData(platform);
-						if (!platformData.targetedOS || (platformData.targetedOS && _.contains(platformData.targetedOS, process.platform))) {
+						if (!platformData.targetedOS || (platformData.targetedOS && _.includes(platformData.targetedOS, process.platform))) {
 							let currentPlatformData = projectData[this.$staticConfig.CLIENT_NAME_KEY_IN_PROJECT_FILE][platformData.frameworkPackageName] || {};
 
 							projectData[this.$staticConfig.CLIENT_NAME_KEY_IN_PROJECT_FILE][platformData.frameworkPackageName] = _.extend(currentPlatformData, this.getVersionData(platformData.frameworkPackageName).wait());

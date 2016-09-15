@@ -1,12 +1,10 @@
-///<reference path="../.d.ts"/>
-"use strict";
 import * as path from "path";
 import * as shell from "shelljs";
 import Future = require("fibers/future");
 import * as constants from "../constants";
 import * as semver from "semver";
 import * as projectServiceBaseLib from "./platform-project-service-base";
-import * as androidDebugBridgePath from "../common/mobile/android/android-debug-bridge";
+import {DeviceAndroidDebugBridge} from "../common/mobile/android/device-android-debug-bridge";
 import {AndroidDeviceHashService} from "../common/mobile/android/android-device-hash-service";
 import {EOL} from "os";
 import { createGUID } from "../common/helpers";
@@ -16,18 +14,12 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 	private static VALUES_VERSION_DIRNAME_PREFIX = AndroidProjectService.VALUES_DIRNAME + "-v";
 	private static ANDROID_PLATFORM_NAME = "android";
 	private static MIN_RUNTIME_VERSION_WITH_GRADLE = "1.3.0";
-	private static MIN_REQUIRED_NODEJS_VERSION_FOR_STATIC_BINDINGS = "4.2.1";
 	private static REQUIRED_DEV_DEPENDENCIES = [
 		{ name: "babel-traverse", version: "^6.4.5" },
 		{ name: "babel-types", version: "^6.4.5" },
 		{ name: "babylon", version: "^6.4.5" },
-		{ name: "filewalker", version: "^0.1.2" },
 		{ name: "lazy", version: "^1.0.11" }
 	];
-
-	private get sysInfoData(): ISysInfoData {
-		return this.$sysInfo.getSysInfo(path.join(__dirname, "..", "..", "package.json")).wait();
-	}
 
 	private _androidProjectPropertiesManagers: IDictionary<IAndroidProjectPropertiesManager>;
 
@@ -49,6 +41,7 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 		private $devicePlatformsConstants: Mobile.IDevicePlatformsConstants,
 		private $projectTemplatesService: IProjectTemplatesService,
 		private $xmlValidator: IXmlValidator,
+		private $config: IConfiguration,
 		private $npm: INodePackageManager) {
 		super($fs, $projectData, $projectDataService);
 		this._androidProjectPropertiesManagers = Object.create(null);
@@ -101,7 +94,8 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 
 			// this call will fail in case `android` is not set correctly.
 			this.$androidToolsInfo.getPathToAndroidExecutable({ showWarningsAsErrors: true }).wait();
-			this.$androidToolsInfo.validateJavacVersion(this.sysInfoData.javacVersion, { showWarningsAsErrors: true }).wait();
+			let javaCompilerVersion = this.$sysInfo.getJavaCompilerVersion().wait();
+			this.$androidToolsInfo.validateJavacVersion(javaCompilerVersion, { showWarningsAsErrors: true }).wait();
 		}).future<void>()();
 	}
 
@@ -138,45 +132,38 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 			}
 
 			this.cleanResValues(targetSdkVersion, frameworkVersion).wait();
-			if (this.canUseStaticBindingGenerator()) {
-				let npmConfig = {
-					"save": true,
-					"save-dev": true,
-					"save-exact": true,
-					"silent": true
-				};
 
-				let projectPackageJson: any = this.$fs.readJson(this.$projectData.projectFilePath).wait();
+			let npmConfig = {
+				"save": true,
+				"save-dev": true,
+				"save-exact": true,
+				"silent": true
+			};
 
-				_.each(AndroidProjectService.REQUIRED_DEV_DEPENDENCIES, (dependency: any) => {
-					let dependencyVersionInProject = (projectPackageJson.dependencies && projectPackageJson.dependencies[dependency.name]) ||
-						(projectPackageJson.devDependencies && projectPackageJson.devDependencies[dependency.name]);
+			let projectPackageJson: any = this.$fs.readJson(this.$projectData.projectFilePath).wait();
 
-					if (!dependencyVersionInProject) {
-						this.$npm.install(`${dependency.name}@${dependency.version}`, this.$projectData.projectDir, npmConfig).wait();
-					} else {
-						let cleanedVerson = semver.clean(dependencyVersionInProject);
+			_.each(AndroidProjectService.REQUIRED_DEV_DEPENDENCIES, (dependency: any) => {
+				let dependencyVersionInProject = (projectPackageJson.dependencies && projectPackageJson.dependencies[dependency.name]) ||
+					(projectPackageJson.devDependencies && projectPackageJson.devDependencies[dependency.name]);
 
-						// The plugin version is not valid. Check node_modules for the valid version.
-						if (!cleanedVerson) {
-							let pathToPluginPackageJson = path.join(this.$projectData.projectDir, constants.NODE_MODULES_FOLDER_NAME, dependency.name, constants.PACKAGE_JSON_FILE_NAME);
-							dependencyVersionInProject = this.$fs.exists(pathToPluginPackageJson).wait() && this.$fs.readJson(pathToPluginPackageJson).wait().version;
-						}
+				if (!dependencyVersionInProject) {
+					this.$npm.install(`${dependency.name}@${dependency.version}`, this.$projectData.projectDir, npmConfig).wait();
+				} else {
+					let cleanedVerson = semver.clean(dependencyVersionInProject);
 
-						if (!semver.satisfies(dependencyVersionInProject || cleanedVerson, dependency.version)) {
-							this.$errors.failWithoutHelp(`Your project have installed ${dependency.name} version ${cleanedVerson} but Android platform requires version ${dependency.version}.`);
-						}
+					// The plugin version is not valid. Check node_modules for the valid version.
+					if (!cleanedVerson) {
+						let pathToPluginPackageJson = path.join(this.$projectData.projectDir, constants.NODE_MODULES_FOLDER_NAME, dependency.name, constants.PACKAGE_JSON_FILE_NAME);
+						dependencyVersionInProject = this.$fs.exists(pathToPluginPackageJson).wait() && this.$fs.readJson(pathToPluginPackageJson).wait().version;
 					}
-				});
-			} else {
-				this.$logger.printMarkdown(` As you are using Node.js \`${this.sysInfoData.nodeVer}\` Static Binding Generator will be turned off.` +
-					`Upgrade your Node.js to ${AndroidProjectService.MIN_REQUIRED_NODEJS_VERSION_FOR_STATIC_BINDINGS} or later, so you can use this feature.`);
-			}
-		}).future<any>()();
-	}
 
-	private canUseStaticBindingGenerator(): boolean {
-		return semver.gte(this.sysInfoData.nodeVer, AndroidProjectService.MIN_REQUIRED_NODEJS_VERSION_FOR_STATIC_BINDINGS);
+					if (!semver.satisfies(dependencyVersionInProject || cleanedVerson, dependency.version)) {
+						this.$errors.failWithoutHelp(`Your project have installed ${dependency.name} version ${cleanedVerson} but Android platform requires version ${dependency.version}.`);
+					}
+				}
+			});
+
+		}).future<any>()();
 	}
 
 	private useGradleWrapper(frameworkDir: string): boolean {
@@ -216,6 +203,10 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 
 			let gradleSettingsFilePath = path.join(this.platformData.projectRoot, "settings.gradle");
 			shell.sed('-i', /__PROJECT_NAME__/, this.getProjectNameFromId(), gradleSettingsFilePath);
+
+			// will replace applicationId in app/App_Resources/Android/app.gradle if it has not been edited by the user
+			let userAppGradleFilePath = path.join(this.$projectData.appResourcesDirectoryPath, this.$devicePlatformsConstants.Android, "app.gradle");
+			shell.sed('-i', /__PACKAGE__/, this.$projectData.projectId, userAppGradleFilePath);
 		}).future<void>()();
 	}
 
@@ -260,30 +251,8 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 	public buildProject(projectRoot: string, buildConfig?: IBuildConfig): IFuture<void> {
 		return (() => {
 			if (this.canUseGradle().wait()) {
-				this.$androidToolsInfo.validateInfo({ showWarningsAsErrors: true, validateTargetSdk: true }).wait();
-				let androidToolsInfo = this.$androidToolsInfo.getToolsInfo().wait();
-				let compileSdk = androidToolsInfo.compileSdkVersion;
-				let targetSdk = this.getTargetFromAndroidManifest().wait() || compileSdk;
-				let buildToolsVersion = androidToolsInfo.buildToolsVersion;
-				let appCompatVersion = androidToolsInfo.supportRepositoryVersion;
-				let buildOptions = ["buildapk",
-					`-PcompileSdk=android-${compileSdk}`,
-					`-PtargetSdk=${targetSdk}`,
-					`-PbuildToolsVersion=${buildToolsVersion}`,
-					`-PsupportVersion=${appCompatVersion}`,
-				];
-
-				if (this.$options.release) {
-					buildOptions.push("-Prelease");
-					buildOptions.push(`-PksPath=${path.resolve(this.$options.keyStorePath)}`);
-					buildOptions.push(`-Palias=${this.$options.keyStoreAlias}`);
-					buildOptions.push(`-Ppassword=${this.$options.keyStoreAliasPassword}`);
-					buildOptions.push(`-PksPassword=${this.$options.keyStorePassword}`);
-				}
-
-				if (!this.canUseStaticBindingGenerator()) {
-					buildOptions.push("-PdontRunSbg");
-				}
+				let buildOptions = this.getBuildOptions();
+				buildOptions.unshift("buildapk");
 
 				let gradleBin = this.useGradleWrapper(projectRoot) ? path.join(projectRoot, "gradlew") : "gradle";
 				if (this.$hostInfo.isWindows) {
@@ -295,6 +264,31 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 					"Run `tns platform remove android && tns platform add android` to switch to Gradle and try again.");
 			}
 		}).future<void>()();
+	}
+
+	public getBuildOptions(): Array<string> {
+		this.$androidToolsInfo.validateInfo({ showWarningsAsErrors: true, validateTargetSdk: true }).wait();
+		let androidToolsInfo = this.$androidToolsInfo.getToolsInfo().wait();
+		let compileSdk = androidToolsInfo.compileSdkVersion;
+		let targetSdk = this.getTargetFromAndroidManifest().wait() || compileSdk;
+		let buildToolsVersion = androidToolsInfo.buildToolsVersion;
+		let appCompatVersion = androidToolsInfo.supportRepositoryVersion;
+		let buildOptions = [
+			`-PcompileSdk=android-${compileSdk}`,
+			`-PtargetSdk=${targetSdk}`,
+			`-PbuildToolsVersion=${buildToolsVersion}`,
+			`-PsupportVersion=${appCompatVersion}`,
+		];
+
+		if (this.$options.release) {
+			buildOptions.push("-Prelease");
+			buildOptions.push(`-PksPath=${path.resolve(this.$options.keyStorePath)}`);
+			buildOptions.push(`-Palias=${this.$options.keyStoreAlias}`);
+			buildOptions.push(`-Ppassword=${this.$options.keyStoreAliasPassword}`);
+			buildOptions.push(`-PksPassword=${this.$options.keyStorePassword}`);
+		}
+
+		return buildOptions;
 	}
 
 	public buildForDeploy(projectRoot: string, buildConfig?: IBuildConfig): IFuture<void> {
@@ -411,9 +405,25 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 		return Future.fromResult();
 	}
 
+	public beforePrepareAllPlugins(): IFuture<void> {
+		if (!this.$config.debugLivesync) {
+			let buildOptions = this.getBuildOptions();
+
+			buildOptions.unshift("clean");
+
+			let projectRoot = this.platformData.projectRoot;
+			let gradleBin = this.useGradleWrapper(projectRoot) ? path.join(projectRoot, "gradlew") : "gradle";
+			if (this.$hostInfo.isWindows) {
+				gradleBin += ".bat";
+			}
+			this.spawn(gradleBin, buildOptions, { stdio: "inherit", cwd: this.platformData.projectRoot }).wait();
+		}
+		return Future.fromResult();
+	}
+
 	public deploy(deviceIdentifier: string): IFuture<void> {
 		return (() => {
-			let adb = this.$injector.resolve(androidDebugBridgePath.AndroidDebugBridge, { identifier: deviceIdentifier });
+			let adb = this.$injector.resolve(DeviceAndroidDebugBridge, { identifier: deviceIdentifier });
 			let deviceRootPath = `/data/local/tmp/${this.$projectData.projectId}`;
 			adb.executeShellCommand(["rm", "-rf", this.$mobileHelper.buildDevicePath(deviceRootPath, "fullsync"),
 				this.$mobileHelper.buildDevicePath(deviceRootPath, "sync"),
@@ -435,10 +445,11 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 			if (!this._canUseGradle) {
 				if (!frameworkVersion) {
 					this.$projectDataService.initialize(this.$projectData.projectDir);
-					frameworkVersion = this.$projectDataService.getValue(this.platformData.frameworkPackageName).wait().version;
+					let frameworkInfoInProjectFile = this.$projectDataService.getValue(this.platformData.frameworkPackageName).wait();
+					frameworkVersion = frameworkInfoInProjectFile && frameworkInfoInProjectFile.version;
 				}
 
-				this._canUseGradle = semver.gte(frameworkVersion, AndroidProjectService.MIN_RUNTIME_VERSION_WITH_GRADLE);
+				this._canUseGradle = !frameworkVersion || semver.gte(frameworkVersion, AndroidProjectService.MIN_RUNTIME_VERSION_WITH_GRADLE);
 			}
 
 			return this._canUseGradle;
@@ -522,7 +533,7 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 					isFileCorrect = !!(~fileContent.indexOf("android:minSdkVersion") && ~fileContent.indexOf("android:targetSdkVersion")
 						&& ~fileContent.indexOf("uses-permission") && ~fileContent.indexOf("<application")
 						&& ~fileContent.indexOf("<activity") && ~fileContent.indexOf("<intent-filter>")
-						&& ~fileContent.indexOf("android.intent.action.MAIN") && ~fileContent.indexOf("com.tns.ErrorReportActivity")
+						&& ~fileContent.indexOf("android.intent.action.MAIN")
 						&& ~fileContent.indexOf("android:versionCode")
 						&& !this.$xmlValidator.getXmlFileErrors(pathToAndroidManifest).wait());
 
@@ -579,7 +590,16 @@ export class AndroidProjectService extends projectServiceBaseLib.PlatformProject
 					if (alreadyHasAndroidManifest) {
 						this.backupOriginalAndroidManifest(originalAndroidManifestFilePath).wait();
 					}
-					this.$fs.copyFile(templateAndroidManifest, originalAndroidManifestFilePath).wait();
+
+					let content = this.$fs.readText(templateAndroidManifest).wait();
+
+					// We do not want to force launch screens on old projects.
+					let themeMeta = `<meta-data android:name="SET_THEME_ON_LAUNCH" android:resource="@style/AppTheme" />`;
+					content = content
+						.replace(`\n\t\t\tandroid:theme="@style/LaunchScreenTheme">\n`, `>\n\t\t\t<!-- android:theme="@style/LaunchScreenTheme" -->\n`)
+						.replace(themeMeta, "<!-- " + themeMeta + " -->");
+
+					this.$fs.writeFile(originalAndroidManifestFilePath, content).wait();
 				} catch (e) {
 					this.$logger.trace(`Copying template's ${this.platformData.configurationFileName} failed. `, e);
 					this.revertBackupOfOriginalAndroidManifest(originalAndroidManifestFilePath).wait();

@@ -1,33 +1,56 @@
-///<reference path="../.d.ts"/>
-"use strict";
-
 import * as path from "path";
+import * as temp from "temp";
 
 export class LiveSyncProvider implements ILiveSyncProvider {
 	constructor(private $androidLiveSyncServiceLocator: {factory: Function},
+		private $androidPlatformLiveSyncServiceLocator: {factory: Function},
 		private $iosLiveSyncServiceLocator: {factory: Function},
+		private $iosPlatformLiveSyncServiceLocator: {factory: Function},
 		private $platformService: IPlatformService,
 		private $platformsData: IPlatformsData,
-		private $logger: ILogger) { }
+		private $logger: ILogger,
+		private $childProcess: IChildProcess,
+		private $options: IOptions,
+		private $devicePlatformsConstants: Mobile.IDevicePlatformsConstants) { }
 
-	private static FAST_SYNC_FILE_EXTENSIONS = [".css", ".xml"];
+	private static FAST_SYNC_FILE_EXTENSIONS = [".css", ".xml" ,".html"];
+
+	private deviceSpecificLiveSyncServicesCache: IDictionary<any> = {};
+	public get deviceSpecificLiveSyncServices(): IDictionary<any> {
+		return {
+			android: (_device: Mobile.IDevice, $injector: IInjector) => {
+				if(!this.deviceSpecificLiveSyncServicesCache[_device.deviceInfo.identifier]) {
+					this.deviceSpecificLiveSyncServicesCache[_device.deviceInfo.identifier] = $injector.resolve(this.$androidLiveSyncServiceLocator.factory, {_device: _device});
+				}
+
+				return this.deviceSpecificLiveSyncServicesCache[_device.deviceInfo.identifier];
+			},
+			ios: (_device: Mobile.IDevice, $injector: IInjector) => {
+				if(!this.deviceSpecificLiveSyncServicesCache[_device.deviceInfo.identifier]) {
+					this.deviceSpecificLiveSyncServicesCache[_device.deviceInfo.identifier] = $injector.resolve(this.$iosLiveSyncServiceLocator.factory, {_device: _device});
+				}
+
+				return this.deviceSpecificLiveSyncServicesCache[_device.deviceInfo.identifier];
+			}
+		};
+	}
 
 	private platformSpecificLiveSyncServicesCache: IDictionary<any> = {};
 	public get platformSpecificLiveSyncServices(): IDictionary<any> {
 		return {
-			android: (_device: Mobile.IDevice, $injector: IInjector): IPlatformLiveSyncService => {
-				if(!this.platformSpecificLiveSyncServicesCache[_device.deviceInfo.identifier]) {
-					this.platformSpecificLiveSyncServicesCache[_device.deviceInfo.identifier] = $injector.resolve(this.$androidLiveSyncServiceLocator.factory, {_device: _device});
+			android: (_liveSyncData: ILiveSyncData, $injector: IInjector) => {
+				if(!this.platformSpecificLiveSyncServicesCache[this.$devicePlatformsConstants.Android]) {
+					this.platformSpecificLiveSyncServicesCache[this.$devicePlatformsConstants.Android] = $injector.resolve(this.$androidPlatformLiveSyncServiceLocator.factory, { _liveSyncData: _liveSyncData });
 				}
 
-				return this.platformSpecificLiveSyncServicesCache[_device.deviceInfo.identifier];
+				return this.platformSpecificLiveSyncServicesCache[this.$devicePlatformsConstants.Android];
 			},
-			ios: (_device: Mobile.IDevice, $injector: IInjector) => {
-				if(!this.platformSpecificLiveSyncServicesCache[_device.deviceInfo.identifier]) {
-					this.platformSpecificLiveSyncServicesCache[_device.deviceInfo.identifier] = $injector.resolve(this.$iosLiveSyncServiceLocator.factory, {_device: _device});
+			ios: (_liveSyncData: ILiveSyncData, $injector: IInjector) => {
+				if(!this.platformSpecificLiveSyncServicesCache[this.$devicePlatformsConstants.iOS]) {
+					this.platformSpecificLiveSyncServicesCache[this.$devicePlatformsConstants.iOS] = $injector.resolve(this.$iosPlatformLiveSyncServiceLocator.factory, { _liveSyncData: _liveSyncData });
 				}
 
-				return this.platformSpecificLiveSyncServicesCache[_device.deviceInfo.identifier];
+				return this.platformSpecificLiveSyncServicesCache[this.$devicePlatformsConstants.iOS];
 			}
 		};
 	}
@@ -55,7 +78,32 @@ export class LiveSyncProvider implements ILiveSyncProvider {
 	public canExecuteFastSync(filePath: string, platform: string): boolean {
 		let platformData = this.$platformsData.getPlatformData(platform);
 		let fastSyncFileExtensions = LiveSyncProvider.FAST_SYNC_FILE_EXTENSIONS.concat(platformData.fastLivesyncFileExtensions);
-		return _.contains(fastSyncFileExtensions, path.extname(filePath));
+		return _.includes(fastSyncFileExtensions, path.extname(filePath));
+	}
+
+	public transferFiles(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[], projectFilesPath: string, isFullSync: boolean): IFuture<void> {
+		return (() => {
+			if (deviceAppData.platform.toLowerCase() === "android" || !deviceAppData.deviceSyncZipPath || !isFullSync) {
+				deviceAppData.device.fileSystem.transferFiles(deviceAppData, localToDevicePaths).wait();
+			} else {
+				temp.track();
+				let tempZip = temp.path({prefix: "sync", suffix: ".zip"});
+				this.$logger.trace("Creating zip file: " + tempZip);
+
+				if (this.$options.syncAllFiles) {
+					this.$childProcess.spawnFromEvent("zip", [ "-r", "-0", tempZip, "app" ], "close", { cwd: path.dirname(projectFilesPath) }).wait();
+				} else {
+					this.$childProcess.spawnFromEvent("zip", [ "-r", "-0", tempZip, "app", "-x", "app/tns_modules/*" ], "close", { cwd: path.dirname(projectFilesPath) }).wait();
+				}
+
+				deviceAppData.device.fileSystem.transferFiles(deviceAppData, [{
+					getLocalPath: () => tempZip,
+					getDevicePath: () => deviceAppData.deviceSyncZipPath,
+					getRelativeToProjectBasePath: () => "../sync.zip",
+					deviceProjectRootPath: deviceAppData.deviceProjectRootPath
+				}]).wait();
+			}
+		}).future<void>()();
 	}
 }
 $injector.register("liveSyncProvider", LiveSyncProvider);

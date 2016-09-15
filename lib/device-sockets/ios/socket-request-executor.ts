@@ -1,6 +1,3 @@
-///<reference path="../../.d.ts"/>
-"use strict";
-
 import * as helpers from "../../common/helpers";
 import * as iOSProxyServices from "../../common/mobile/ios/device/ios-proxy-services";
 
@@ -42,14 +39,16 @@ export class IOSSocketRequestExecutor implements IiOSSocketRequestExecutor {
 		}).future<void>()();
 	}
 
-	public executeLaunchRequest(device: Mobile.IiOSDevice, timeout: number, readyForAttachTimeout: number): IFuture<void> {
+	public executeLaunchRequest(device: Mobile.IiOSDevice, timeout: number, readyForAttachTimeout: number, shouldBreak?: boolean): IFuture<void> {
 		return (() => {
 			let npc = new iOSProxyServices.NotificationProxyClient(device, this.$injector);
 
 			try {
 				this.$iOSNotificationService.awaitNotification(npc, this.$iOSNotification.appLaunching, timeout).wait();
 				process.nextTick(() => {
-					npc.postNotificationAndAttachForData(this.$iOSNotification.waitForDebug );
+					if(shouldBreak) {
+						npc.postNotificationAndAttachForData(this.$iOSNotification.waitForDebug );
+					}
 					npc.postNotificationAndAttachForData(this.$iOSNotification.attachRequest);
 				});
 

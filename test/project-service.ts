@@ -1,6 +1,3 @@
-/// <reference path=".d.ts" />
-"use strict";
-
 import * as yok from "../lib/common/yok";
 import * as stubs from "./stubs";
 import * as constants from "./../lib/constants";
@@ -382,8 +379,7 @@ describe("Project Service Tests", () => {
 					return (() => {
 						if (incorrectInputsCount < incorrectInputsLimit) {
 							incorrectInputsCount++;
-						}
-						else {
+						} else {
 							hasPromptedForString = true;
 
 							return validProjectName;

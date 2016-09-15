@@ -1,6 +1,3 @@
-///<reference path=".d.ts"/>
-"use strict";
-
 import Future = require("fibers/future");
 import * as npm from "npm";
 
@@ -40,6 +37,9 @@ export class NodePackageManager implements INodePackageManager {
 	}
 
 	public install(packageName: string, pathToSave: string, config?: any): IFuture<any> {
+		if (this.$options.disableNpmInstall) {
+			return Future.fromResult();
+		}
 		if (this.$options.ignoreScripts) {
 			config = config || {};
 			config["ignore-scripts"] = true;

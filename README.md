@@ -1,6 +1,7 @@
 NativeScript Command-Line Interface
 ================
-[![Build Status](https://travis-ci.org/NativeScript/nativescript-cli.svg?branch=build)][2]
+Master Branch [![Build Status](https://travis-ci.org/NativeScript/nativescript-cli.svg?branch=build)][2].
+Get it using: `npm install nativescript@next -g`
 
 *Create, build, and run native apps for iOS and Android using JavaScript or TypeScript*
 
@@ -26,6 +27,7 @@ The NativeScript CLI lets you create, build, and deploy NativeScript-based proje
 * [Troubleshooting](#troubleshooting)
 * [Known Issues](#known-issues)
 * [How to Contribute](#how-to-contribute)
+* [How to Build](#how-to-build)
 * [License](#license)
 
 What is NativeScript
@@ -72,12 +74,12 @@ You can install and run the NativeScript CLI on Windows, OS X or Linux.
 ### Setup Script
 To quickly set up your system for the latest NativeScript CLI, paste the following PowerShell script in the **Command Prompt** and hit `Enter`:
 ```cmd
-@powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/NativeScript/nativescript-cli/production/setup/native-script.ps1'))"
+@powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((new-object net.webclient).DownloadString('https://www.nativescript.org/setup/win'))"
 ```
 
 Alternatively, your can paste the following PowerShell setup script in a **Windows PowerShell console** and hit `Enter`:
 ```PowerShell
-start-process -FilePath PowerShell.exe -Verb Runas -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/NativeScript/nativescript-cli/production/setup/native-script.ps1'))"
+start-process -FilePath PowerShell.exe -Verb Runas -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command iex ((new-object net.webclient).DownloadString('https://www.nativescript.org/setup/win'))"
 ```
 > Both scripts require that you have **.NET 4.0 or later** installed on your system. You can download .NET 4.6.1 from this [link](http://go.microsoft.com/fwlink/?LinkId=671729).
 
@@ -90,7 +92,7 @@ start-process -FilePath PowerShell.exe -Verb Runas -Wait -ArgumentList "-NoProfi
 * [JDK 8][JDK 8] or a later stable official release
 * [Android SDK 22][Android SDK 22] or a later stable official release
 * [Android SDK Build-tools 23.0.0][Android SDK Build-tools 23.0.0] or a later stable official release
-* [Local Maven repository for Support Libraries][Local Maven repository for Support Libraries]
+* [Android Support Repository][Android Support Repository]
 * (Optional) [Genymotion][Genymotion]
 
 If you have installed Chocolatey, you can complete these steps to set up JDK, and Android SDK.
@@ -129,11 +131,11 @@ If you have installed Chocolatey, you can complete these steps to set up JDK, an
 	```
 1. Select all packages for the Android 22 SDK and any other SDKs that you want to install, click **Install** and wait for the installation to complete.
 1. Select Android SDK Build-tools 22.0.0 or later stable version, click **Install** and wait for the installation to complete.
-1. Select Extras/Local Maven repository for Support Libraries, click **Install** and wait for the installation to complete.
+1. Select Extras/Android Support Repository, click **Install** and wait for the installation to complete.
 
 > NOTE: You can install required Android Tools with the following command:
 ```Shell
-android update sdk --filter tools,platform-tools,android-23,build-tools-23.0.2,sys-img-x86-android-22,extra-android-m2repository,extra-google-m2repository,extra-android-support --all --no-ui
+android update sdk --filter tools,platform-tools,android-23,build-tools-23.0.3,sys-img-x86-android-22,extra-android-m2repository,extra-google-m2repository,extra-android-support --all --no-ui
 ```
 
 ## OS X
@@ -143,7 +145,7 @@ android update sdk --filter tools,platform-tools,android-23,build-tools-23.0.2,s
 ### Setup Script
 To quickly set up your system for the latest NativeScript CLI, paste the following Ruby script in the **Terminal** and hit `Enter`:
 ```Shell
-sudo ruby -e "$(curl -fsSL https://raw.githubusercontent.com/NativeScript/nativescript-cli/production/setup/native-script.rb)"
+sudo ruby -e "$(curl -fsSL https://www.nativescript.org/setup/mac)"
 ```
 
 ### Manual Setup
@@ -160,7 +162,7 @@ sudo ruby -e "$(curl -fsSL https://raw.githubusercontent.com/NativeScript/native
 	* [JDK 8][JDK 8] or a later stable official release
 	* [Android SDK 22][Android SDK 22] or a later stable official release
 	* [Android SDK Build-tools 23.0.0][Android SDK Build-tools 23.0.0] or a later stable official release
-	* [Local Maven repository for Support Libraries][Local Maven repository for Support Libraries]
+	* [Android Support Repository][Android Support Repository]
 	* (Optional) [Genymotion][Genymotion]
 
 If not present, create the following environment variables.
@@ -182,7 +184,7 @@ For example: ANDROID_HOME=/usr/local/Cellar/android-sdk/24/
 You can install the required Android tools with the following command:
 
 ```Shell
-echo yes | android update sdk --filter tools,platform-tools,android-23,build-tools-23.0.2,sys-img-x86-android-22,extra-android-m2repository,extra-google-m2repository,extra-android-support --all --no-ui
+echo yes | android update sdk --filter tools,platform-tools,android-23,build-tools-23.0.3,sys-img-x86-android-22,extra-android-m2repository,extra-google-m2repository,extra-android-support --all --no-ui
 ```
 
 ## Linux
@@ -208,7 +210,7 @@ echo yes | android update sdk --filter tools,platform-tools,android-23,build-too
 * [JDK 8][JDK 8] or a later stable official release
 * [Android SDK 22][Android SDK 22] or a later stable official release
 * [Android SDK Build-tools 23.0.0][Android SDK Build-tools 23.0.0] or a later stable official release
-* [Local Maven repository for Support Libraries][Local Maven repository for Support Libraries]
+* [Android Support Repository][Android Support Repository]
 * (Optional) [Genymotion][Genymotion]
 
 If not present, create the following environment variables.
@@ -230,7 +232,7 @@ For example: ANDROID_HOME=/home/user/android-sdk
 You can install required Android Tools with the following command.
 
 ```Shell
-echo yes | android update sdk --filter tools,platform-tools,android-23,build-tools-23.0.2,sys-img-x86-android-22,extra-android-m2repository,extra-google-m2repository,extra-android-support --all --no-ui
+echo yes | android update sdk --filter tools,platform-tools,android-23,build-tools-23.0.3,sys-img-x86-android-22,extra-android-m2repository,extra-google-m2repository,extra-android-support --all --no-ui
 ```
 
 [Back to Top][1]
@@ -584,6 +586,24 @@ To learn how to suggest a new feature or improvement, click [here](https://githu
 To learn how to contribute to the code base, click [here](https://github.com/NativeScript/nativescript-cli/blob/master/CONTRIBUTING.md#contribute-to-the-code-base).
 
 [Back to Top][1]
+How to Build
+===
+```
+git clone https://github.com/NativeScript/nativescript-cli
+cd nativescript-cli
+git submodule update --init
+npm install
+grunt
+```
+
+To use the locally built CLI instead `tns` you can call `PATH_TO_CLI_FOLDER/bin/tns`. For example:
+`PATH_TO_CLI_FOLDER/bin/tns run ios|android`
+
+> NOTE: You should have [SSH key set](https://github.com/settings/keys) for your Git in order add the submodule via [smart git protocol](https://github.com/settings/keys).
+Instruction on how to set new SSH key in Windows, Mac and Linux can be found [here](https://help.github.com/articles/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent/#platform-windows).
+If you try to clone without SSH key setup, you will receive error _"Permission denied (publickey). Please make sure you have the correct access rights"_.
+
+[Back to Top][1]
 
 License
 ===
@@ -611,5 +631,5 @@ This software is licensed under the Apache 2.0 license, quoted <a href="LICENSE"
 [CocoaPods]: https://guides.cocoapods.org/using/getting-started.html#getting-started
 [xcproj]: https://github.com/0xced/xcproj#installation
 [Android SDK Build-tools 23.0.0]: http://developer.android.com/sdk/index.html
-[Local Maven repository for Support Libraries]: http://developer.android.com/sdk/index.html
+[Android Support Repository]: http://developer.android.com/sdk/index.html
 ![](https://ga-beacon.appspot.com/UA-111455-24/nativescript/nativescript-cli?pixel)

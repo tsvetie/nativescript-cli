@@ -1,6 +1,3 @@
-///<reference path=".d.ts"/>
-"use strict";
-
 import * as commonOptionsLibPath from "./common/options";
 import * as osenv from "osenv";
 import * as path from "path";
@@ -29,6 +26,7 @@ export class Options extends commonOptionsLibPath.OptionsBase {
 			keyStoreAlias: { type: OptionType.String },
 			keyStoreAliasPassword: { type: OptionType.String },
 			ignoreScripts: {type: OptionType.Boolean },
+			disableNpmInstall: {type: OptionType.Boolean },
 			tnsModulesVersion: { type: OptionType.String },
 			compileSdk: {type: OptionType.Number },
 			port: { type: OptionType.Number },
@@ -36,8 +34,13 @@ export class Options extends commonOptionsLibPath.OptionsBase {
 			baseConfig: { type: OptionType.String },
 			platformTemplate: { type: OptionType.String },
 			ng: {type: OptionType.Boolean },
+			tsc: {type: OptionType.Boolean },
 			bundle: {type: OptionType.Boolean },
-			all: {type: OptionType.Boolean }
+			all: {type: OptionType.Boolean },
+			teamId: { type: OptionType.String },
+			rebuild: { type: OptionType.Boolean, default: true },
+			syncAllFiles: { type: OptionType.Boolean },
+			liveEdit: { type: OptionType.Boolean }
 		},
 		path.join($hostInfo.isWindows ? process.env.AppData : path.join(osenv.home(), ".local/share"), ".nativescript-cli"),
 			$errors, $staticConfig);

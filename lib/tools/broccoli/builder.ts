@@ -1,6 +1,3 @@
-///<reference path="../../.d.ts"/>
-"use strict";
-
 import * as constants from "../../../lib/constants";
 import * as fs from "fs";
 import * as path from "path";
@@ -8,6 +5,7 @@ import * as shelljs from "shelljs";
 import Future = require("fibers/future");
 import * as destCopyLib from "./node-modules-dest-copy";
 import * as fiberBootstrap from "../../common/fiber-bootstrap";
+import {sleep} from "../../../lib/common/helpers";
 
 let glob = require("glob");
 
@@ -37,6 +35,11 @@ export class Builder implements IBroccoliBuilder {
 					stat: true
 				}, (er: Error, files: string[]) => {
 					fiberBootstrap.run(() => {
+
+						while(this.$lockfile.check().wait()) {
+							sleep(10);
+						}
+
 						this.$lockfile.lock().wait();
 						if (er) {
 							if (!future.isResolved()) {

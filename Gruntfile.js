@@ -9,7 +9,7 @@ function shallowCopy(obj) {
 }
 
 var travis = process.env["TRAVIS"];
-var buildNumber = process.env["TRAVIS_BUILD_NUMBER"] || process.env["BUILD_NUMBER"] || "non-ci";
+var buildNumber = process.env["PACKAGE_VERSION"] || process.env["BUILD_NUMBER"] || "non-ci";
 
 module.exports = function(grunt) {
 	var path = require("path");
@@ -39,17 +39,17 @@ module.exports = function(grunt) {
 			},
 
 			devlib: {
-				src: ["lib/**/*.ts", "!lib/common/node_modules/**/*.ts", "!lib/common/messages/**/*.ts"],
+				src: ["lib/**/*.ts", "!lib/common/node_modules/**/*.ts"],
 				reference: "lib/.d.ts"
 			},
 
 			devall: {
-				src: ["lib/**/*.ts", "test/**/*.ts", "!lib/common/node_modules/**/*.ts", "!lib/common/messages/**/*.ts", "lib/common/test/unit-tests/**/*.ts", "definitions/**/*.ts", "!lib/common/test/.d.ts"],
+				src: ["lib/**/*.ts", "test/**/*.ts", "!lib/common/node_modules/**/*.ts", "lib/common/test/unit-tests/**/*.ts", "definitions/**/*.ts", "!lib/common/test/.d.ts"],
 				reference: "lib/.d.ts"
 			},
 
 			release_build: {
-				src: ["lib/**/*.ts", "test/**/*.ts", "!lib/common/node_modules/**/*.ts", "!lib/common/messages/**/*.ts"],
+				src: ["lib/**/*.ts", "test/**/*.ts", "!lib/common/node_modules/**/*.ts"],
 				reference: "lib/.d.ts",
 				options: {
 					sourceMap: false,
@@ -61,7 +61,7 @@ module.exports = function(grunt) {
 		tslint: {
 			build: {
 				files: {
-					src: ["lib/**/*.ts", "test/**/*.ts", "!lib/common/node_modules/**/*.ts", "!lib/common/messages/**/*.ts", "lib/common/test/unit-tests/**/*.ts", "definitions/**/*.ts", "!lib/**/*.d.ts" , "!test/**/*.ts"]
+					src: ["lib/**/*.ts", "test/**/*.ts", "!lib/common/node_modules/**/*.ts", "!lib/common/messages/**/*.ts", "lib/common/test/unit-tests/**/*.ts", "definitions/**/*.ts", "!lib/**/*.d.ts" , "!test/**/*.d.ts"]
 				},
 				options: {
 					configuration: grunt.file.readJSON("./tslint.json")

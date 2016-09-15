@@ -1,6 +1,3 @@
-///<reference path="../.d.ts"/>
-"use strict";
-
 export class LivesyncCommand implements ICommand {
 	constructor(private $logger: ILogger,
 		private $usbLiveSyncService: ILiveSyncService,
@@ -20,7 +17,7 @@ export class LivesyncCommand implements ICommand {
 
 			let platform = args[0];
 			if(platform) {
-				 return _.contains(this.$mobileHelper.platformNames, this.$mobileHelper.normalizePlatformName(platform));
+				 return _.includes(this.$mobileHelper.platformNames, this.$mobileHelper.normalizePlatformName(platform));
 			}
 
 			return true;

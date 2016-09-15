@@ -38,6 +38,7 @@ interface IStaticConfig extends Config.IStaticConfig { }
 interface IConfiguration extends Config.IConfig {
 	ANDROID_DEBUG_UI: string;
 	USE_POD_SANDBOX: boolean;
+	debugLivesync: boolean;
 }
 
 interface IApplicationPackage {
@@ -56,8 +57,14 @@ interface IOpener {
 }
 
 interface ILiveSyncService {
-	liveSync(platform: string): IFuture<void>;
+	liveSync(platform: string, applicationReloadAction?: (deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]) => IFuture<void>): IFuture<void>;
 	forceExecuteFullSync: boolean;
+}
+
+interface IPlatformLiveSyncService {
+	fullSync(postAction?: (deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]) => IFuture<void>): IFuture<void>;
+	partialSync(event: string, filePath: string, dispatcher: IFutureDispatcher, afterFileSyncAction: (deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]) => IFuture<void>): void;
+	refreshApplication(deviceAppData: Mobile.IDeviceAppData, localToDevicePaths: Mobile.ILocalToDevicePathData[]): IFuture<void>;
 }
 
 interface IOptions extends ICommonOptions {
@@ -75,6 +82,7 @@ interface IOptions extends ICommonOptions {
 	frameworkPath: string;
 	frameworkVersion: string;
 	ignoreScripts: boolean;
+	disableNpmInstall: boolean;
 	ipa: string;
 	keyStoreAlias: string;
 	keyStoreAliasPassword: string;
@@ -82,6 +90,7 @@ interface IOptions extends ICommonOptions {
 	keyStorePath: string;
 	linkTo: string;
 	ng: boolean;
+	tsc: boolean;
 	bundle: boolean;
 	platformTemplate: string;
 	port: Number;
@@ -89,6 +98,10 @@ interface IOptions extends ICommonOptions {
 	sdk: string;
 	symlink: boolean;
 	tnsModulesVersion: string;
+	teamId: string;
+	rebuild: boolean;
+	syncAllFiles: boolean;
+	liveEdit: boolean;
 }
 
 interface IInitService {
@@ -112,20 +125,10 @@ interface ICredentials {
  */
 interface IITMSData extends ICredentials {
 	/**
-	 * The identifier of the mobile provision used for building. Note that this will override the same option set through .xcconfig files.
+	 * Path to a .ipa file which will be uploaded.
 	 * @type {string}
 	 */
-	mobileProvisionIdentifier?: string;
-	/**
-	 * The Code Sign Identity used for building. Note that this will override the same option set through .xcconfig files.
-	 * @type {string}
-	 */
-	codeSignIdentity?: string;
-	/**
-	 * Path to a .ipa file which will be uploaded. If set that .ipa will be used and no build will be issued.
-	 * @type {string}
-	 */
-	ipaFilePath?: string;
+	ipaFilePath: string;
 	/**
 	 * Specifies whether the logging level of the itmstransporter command-line tool should be set to verbose.
 	 * @type {string}
@@ -242,7 +245,7 @@ interface IiOSNotificationService {
 }
 
 interface IiOSSocketRequestExecutor {
-	executeLaunchRequest(device: Mobile.IiOSDevice, timeout: number, readyForAttachTimeout: number): IFuture<void>;
+	executeLaunchRequest(device: Mobile.IiOSDevice, timeout: number, readyForAttachTimeout: number, shouldBreak?: boolean): IFuture<void>;
 	executeAttachRequest(device: Mobile.IiOSDevice, timeout: number): IFuture<void>;
 }
 

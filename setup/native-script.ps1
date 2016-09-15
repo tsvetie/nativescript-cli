@@ -2,9 +2,9 @@
 # A PowerShell script to set up Windows machine for NativeScript development
 # NOTE: The script requires at least a version 4.0 .NET framework installed
 # To run it inside a COMMAND PROMPT against the production branch (only one supported with self-elevation) use
-# @powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/NativeScript/nativescript-cli/production/setup/native-script.ps1'))"
+# @powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((new-object net.webclient).DownloadString('https://www.nativescript.org/setup/win'))"
 # To run it inside a WINDOWS POWERSHELL console against the production branch (only one supported with self-elevation) use
-# start-process -FilePath PowerShell.exe -Verb Runas -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/NativeScript/nativescript-cli/production/setup/native-script.ps1'))"
+# start-process -FilePath PowerShell.exe -Verb Runas -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command iex ((new-object net.webclient).DownloadString('https://www.nativescript.org/setup/win'))"
 
 # Check if latest .NET framework installed is at least 4
 $dotNetVersions = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version,Release -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select Version
@@ -102,9 +102,23 @@ $androidExecutable = [io.path]::combine($env:ANDROID_HOME, "tools", "android")
 echo y | cmd /c "$androidExecutable" update sdk --filter "platform-tools" --all --no-ui
 echo y | cmd /c "$androidExecutable" update sdk --filter "tools" --all --no-ui
 echo y | cmd /c "$androidExecutable" update sdk --filter "android-23" --all --no-ui
-echo y | cmd /c "$androidExecutable" update sdk --filter "build-tools-23.0.2" --all --no-ui
+echo y | cmd /c "$androidExecutable" update sdk --filter "build-tools-23.0.3" --all --no-ui
 echo y | cmd /c "$androidExecutable" update sdk --filter "extra-android-m2repository" --all --no-ui
 
+if ((Read-Host "Do you want to install Android emulator?") -eq 'y') {
+	if ((Read-Host "Do you want to install HAXM (Hardware accelerated Android emulator)?") -eq 'y') {
+		echo y | $ANDROID_HOME/tools/android update sdk --filter extra-intel-Hardware_Accelerated_Execution_Manager --all --no-ui
+
+		$haxmSilentInstaller = [io.path]::combine($env:ANDROID_HOME, "extras", "intel", "Hardware_Accelerated_Execution_Manager", "silent_install.bat")
+		cmd /c "$haxmSilentInstaller"
+
+		echo y | $ANDROID_HOME/tools/android update sdk --filter sys-img-x86-android-23 --all --no-ui
+		echo no | $ANDROID_HOME/tools/android create avd -n Emulator-Api23-Default -t android-23 --abi default/x86 -c 12M -f
+	} else {
+		echo y | $ANDROID_HOME/tools/android update sdk --filter sys-img-armeabi-v7a-android-23 --all --no-ui
+		echo no | $ANDROID_HOME/tools/android create avd -n Emulator-Api23-Default -t android-23 --abi default/armeabi-v7a -c 12M -f
+	}
+}
 
 Write-Host -ForegroundColor Green "This script has modified your environment. You need to log off and log back on for the changes to take effect."
 Pause
