@@ -8,10 +8,12 @@ A fork of the NativeScript Command-Line Interface(https://github.com/NativeScrip
 3. "tns run vr --justlaunch" - performs "tns platform add vr" if necessary and "tns build vr".
 
 Prerequisites:
+
 1. Install unity - https://unity3d.com/
 2. Add to PATH environment variable the path to unity.exe.
 
 Steps to test the added commands:
+
 1. "tns create [AppName] --tsc"
 2. "cd [AppName]"
 3. "tns run vr --justlaunch"
