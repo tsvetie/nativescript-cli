@@ -123,3 +123,6 @@ $injector.requireCommand("post-install-cli", "./commands/post-install");
 $injector.requireCommand("update", "./commands/update");
 
 $injector.require("iOSLogFilter", "./services/ios-log-filter");
+
+$injector.requireCommand("build|vr", "./commands/build");
+$injector.requireCommand("run|vr", "./commands/run");

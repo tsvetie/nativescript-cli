@@ -1,3 +1,6 @@
+import Future = require("fibers/future");
+import { AddPlatformCommand } from "./add-platform";
+
 export class BuildCommandBase {
 	constructor(protected $options: IOptions,
 		private $platformService: IPlatformService) { }
@@ -53,3 +56,36 @@ export class BuildAndroidCommand extends BuildCommandBase implements  ICommand {
 	}
 }
 $injector.registerCommand("build|android", BuildAndroidCommand);
+
+export class BuildVRCommand extends AddPlatformCommand {
+	constructor(protected $projectData: IProjectData,
+		$platformService: IPlatformService,
+		protected $errors: IErrors,
+		$fs: IFileSystem,
+		protected $logger: ILogger) {
+			super($projectData, $platformService, $errors, $fs, $logger);
+	}
+
+	protected pathToApk: string;
+
+	public allowedParameters: ICommandParameter[] = [];
+
+	public execute(args: string[]): IFuture<void> {
+		return (() => {
+			super.execute(["vr"]).wait();
+			let vr = require("nativescript-cli-vr");
+			let buildFuture = new Future<string>();
+
+			this.$logger.info("Building...");
+			let promise: any = vr.build(this.$projectData.projectId, this.$projectData.projectDir);
+
+			promise
+				.then((result: string) => buildFuture.return(result))
+				.catch((e: Error) => buildFuture.throw(e));
+
+			this.pathToApk = buildFuture.wait();
+			this.$logger.printMarkdown(`Successfully built application \`${this.$projectData.projectId}\` for \`Virtual Reality\`.`);
+		}).future<void>()();
+	}
+}
+$injector.registerCommand("build|vr", BuildVRCommand);
