@@ -11,6 +11,7 @@ Prerequisites:
 
 1. Install unity - https://unity3d.com/
 2. Add to PATH environment variable the path to unity.exe.
+3. Download and install the nativescript-2.5.0.tgz from the root of the repository (npm install -g) 
 
 Steps to test the added commands:
 
